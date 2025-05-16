@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}{{ festivo and 'Editar Festivo' or 'Crear Festivo' }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-2 py-3">
+  <h4 class="mb-4 text-center">
+    {{ festivo and 'Editar Festivo' or 'Nuevo Festivo' }}
+  </h4>
+  <div class="row justify-content-center">
+    <div class="col-12 col-md-6">
+      <form method="POST" class="card p-3 shadow-sm bg-light">
+        <!-- Fecha -->
+        <div class="mb-3">
+          <label class="form-label">Fecha</label>
+          <input type="date" name="fecha"
+                 class="form-control"
+                 value="{{ festivo and festivo.fecha.isoformat() or '' }}"
+                 required>
+        </div>
+        <!-- Nota -->
+        <div class="mb-3">
+          <label class="form-label">Nota</label>
+          <input type="text" name="nota"
+                 class="form-control"
+                 value="{{ festivo and festivo.nota or '' }}">
+        </div>
+        <!-- Botones -->
+        <div class="d-grid gap-2">
+          <button type="submit" class="btn btn-primary">
+            {{ festivo and 'Guardar Cambios' or 'Crear Festivo' }}
+          </button>
+          <a href="{{ url_for('festivos.listar_festivos') }}"
+             class="btn btn-secondary">Cancelar</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Listado de Ventas{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-2 py-3">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="mb-0">Ventas</h4>
+    {% if current_user.rol in ['administrador', 'semiadmin'] %}
+    <a href="{{ url_for('ventas.generar_venta') }}" class="btn btn-sm btn-success">
+      <i class="bi bi-plus-circle me-1"></i> Nueva Venta
+    </a>
+    {% endif %}
+  </div>
+
+  <form method="get" class="row g-2 mb-4">
+    <div class="col-sm-3">
+      <input type="date"
+             name="fecha"
+             value="{{ filtro_fecha }}"
+             class="form-control form-control-sm">
+    </div>
+    <div class="col-sm-3">
+      <input type="text"
+             name="consecutivo"
+             placeholder="Consecutivo"
+             value="{{ filtro_consecutivo }}"
+             class="form-control form-control-sm">
+    </div>
+    <div class="col-sm-2">
+      <button type="submit" class="btn btn-sm btn-primary w-100">Filtrar</button>
+    </div>
+  </form>
+
+  <div class="table-responsive">
+    <table class="table table-striped table-sm align-middle" style="table-layout: fixed;">
+      <thead class="table-light">
+        <tr>
+          <th style="width:10%">Consecutivo</th>
+          <th style="width:10%">Vendedor</th>
+          <th style="width:10%">Fecha</th>
+          <th style="width:10%">Dev. Ant. (Código)</th>
+          <th style="width:10%">Pedido (Código)</th>
+          <th style="width:10%">Extra (Código)</th>
+          <th style="width:10%">Dev. Día (Código)</th>
+          <th style="width:10%" class="text-end">Total</th>
+          <th style="width:12%" class="text-end">Comisión</th>
+          <th style="width:12%" class="text-end">Pagar Pan.</th>
+          <th style="width:6%">Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for v in ventas %}
+        <tr>
+          <td>{{ v.consecutivo }}</td>
+          <td>{{ vendedores.get(v.codigo_vendedor, v.codigo_vendedor) }}</td>
+          <td>{{ v.fecha.strftime('%Y-%m-%d') }}</td>
+          <td>{{ v.codigo_dev_anterior or '-' }}</td>
+          <td>{{ v.codigo_pedido or '-' }}</td>
+          <td>{{ v.codigo_extra or '-' }}</td>
+          <td>{{ v.codigo_dev_dia or '-' }}</td>
+          <td class="text-end">
+            ${{ "{:,.0f}".format(v.total_venta)|replace(',', '.') }}
+          </td>
+          <td class="text-end">
+            ${{ "{:,.0f}".format(v.comision)|replace(',', '.') }}
+          </td>
+          <td class="text-end">
+            ${{ "{:,.0f}".format(v.pagar_pan)|replace(',', '.') }}
+          </td>
+          <td>
+            <div class="d-flex gap-2">
+              <!-- PDF accesible para todos -->
+              <a href="{{ url_for('ventas.export_pdf_venta', venta_id=v.id) }}"
+                 class="btn btn-outline-secondary btn-sm"
+                 title="Exportar PDF">
+                <i class="bi bi-file-earmark-pdf"></i>
+              </a>
+              <!-- Eliminar solo para administrador -->
+              {% if current_user.rol == 'administrador' %}
+              <form action="{{ url_for('ventas.eliminar_venta', vid=v.id) }}"
+                    method="post"
+                    onsubmit="return confirm('¿Eliminar esta venta?');">
+                <button class="btn btn-outline-danger btn-sm" title="Eliminar">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="11" class="text-center">No hay ventas registradas.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

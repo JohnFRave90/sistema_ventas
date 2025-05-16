@@ -1,0 +1,42 @@
+{# templates/productos/crear.html #}
+{% extends "base.html" %}
+{% block title %}Registrar Producto{% endblock %}
+
+{% block content %}
+<h4 class="mb-4 text-center">Registrar nuevo producto</h4>
+
+<div class="row justify-content-center">
+  <div class="col-md-6" style="max-width: 500px;">
+    <form method="POST" class="card p-4 shadow-sm bg-light">
+
+      <div class="mb-3">
+        <label class="form-label">Código</label>
+        <input type="text" name="codigo" class="form-control" maxlength="20" required>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Nombre</label>
+        <input type="text" name="nombre" class="form-control" maxlength="50" required>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Precio</label>
+        <input type="number" name="precio" class="form-control" step="0.01" required>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Categoría</label>
+        <select name="categoria" class="form-select" required>
+          <option value="panaderia">Panadería</option>
+          <option value="bizcocheria">Bizcochería</option>
+        </select>
+      </div>
+      <div class="form-check mb-3">
+        <input class="form-check-input" type="checkbox" name="activo" id="activo" checked>
+        <label class="form-check-label" for="activo">Producto activo</label>
+      </div>
+
+      <div class="d-grid">
+        <button type="submit" class="btn btn-incolpan">Registrar</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

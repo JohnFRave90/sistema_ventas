@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Registrar Cambio{% endblock %}
+{% block content %}
+<h3>Registrar Cambio del Día</h3>
+<form method="post">
+  <div class="row">
+    <div class="col-md-4">
+      <label>Fecha</label>
+      <input type="date" name="fecha" class="form-control" required>
+    </div>
+    <div class="col-md-4">
+      <label>Vendedor</label>
+      <select name="vendedor" class="form-select" required>
+        <option value="">Seleccione...</option>
+        {% for v in vendedores %}
+          <option value="{{ v.codigo_vendedor }}">{{ v.codigo_vendedor }} - {{ v.nombre }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-4">
+      <label>Valor de cambio ($)</label>
+      <input type="number" step="0.01" name="valor_cambio" class="form-control" required>
+    </div>
+    <div class="col-md-12 mt-2">
+      <label>Comentarios</label>
+      <textarea name="comentarios" class="form-control" rows="2"></textarea>
+    </div>
+    <div class="col-md-12 mt-3">
+      <button type="submit" class="btn btn-primary">Registrar Cambio</button>
+    </div>
+  </div>
+</form>
+{% endblock %}

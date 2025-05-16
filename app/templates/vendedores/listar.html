@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Vendedores registrados{% endblock %}
+
+{% block content %}
+<h4 class="mb-4">Listado de vendedores</h4>
+
+{% if current_user.rol == 'administrador' %}
+  <div class="d-flex justify-content-end mb-3">
+    <a href="{{ url_for('vendedores.crear_vendedor') }}" class="btn btn-success">
+      <i class="bi bi-plus-circle me-1"></i> Agregar Vendedor
+    </a>
+  </div>
+{% endif %}
+
+<table class="table table-bordered table-hover">
+  <thead class="table-light">
+    <tr>
+      <th>Código</th>
+      <th>Nombre</th>
+      <th>Usuario</th>
+      <th>Comisión Panadería</th>
+      <th>Comisión Bizcochería</th>
+      <th>Acciones</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for v in vendedores %}
+    <tr>
+      <td>{{ v.codigo_vendedor }}</td>
+      <td>{{ v.nombre }}</td>
+      <td>{{ v.nombre_usuario }}</td>
+      <td>{{ v.comision_panaderia }}%</td>
+      <td>{{ v.comision_bizcocheria }}%</td>
+      <td>
+        {% if current_user.rol == 'administrador' %}
+          <a href="{{ url_for('vendedores.editar_vendedor', id=v.id) }}" class="btn btn-sm btn-warning">Editar</a>
+          <a href="{{ url_for('vendedores.eliminar_vendedor', id=v.id) }}" class="btn btn-sm btn-danger" onclick="return confirm('¿Seguro que deseas eliminar este vendedor?');">Eliminar</a>
+        {% else %}
+          <span class="text-muted">-</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

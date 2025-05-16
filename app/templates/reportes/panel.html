@@ -1,0 +1,40 @@
+{# templates/reportes/panel.html #}
+{% extends "base.html" %}
+{% block title %}Panel de Reportes{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-2 py-3">
+  <h4 class="mb-4 text-center">Panel de Reportes y Proyecciones</h4>
+
+  <!-- Información de días hábiles arriba de la tabla -->
+  <div class="mb-3">
+    <span class="me-4"><strong>Días hábiles transcurridos:</strong> {{ dias_transcurridos }}</span>
+    <span><strong>Días hábiles del mes:</strong> {{ total_habiles }}</span>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table table-striped align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>Vendedor</th>
+          <th>Código</th>
+          <th>Total Vendido</th>
+          <th>Comisión</th>
+          <th>Proyección</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td>{{ r.vendedor }}</td>
+          <td>{{ r.cod_vend }}</td>
+          <td>${{ "{:,.0f}".format(r.vendido) }}</td>
+          <td>${{ "{:,.0f}".format(r.comision) }}</td>
+          <td>${{ "{:,.0f}".format(r.proyeccion) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

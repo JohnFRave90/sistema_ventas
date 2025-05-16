@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Editar vendedor{% endblock %}
+
+{% block content %}
+<h4 class="mb-4 text-center">Editar vendedor</h4>
+
+<div class="row justify-content-center">
+  <div class="col-md-6" style="max-width: 500px;">
+    <form method="POST" class="card p-4 shadow-sm bg-light">
+
+      <div class="mb-3">
+        <label class="form-label">Código</label>
+        <input type="text" name="codigo" class="form-control" value="{{ vendedor.codigo_vendedor }}" maxlength="25" required>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Nombre</label>
+        <input type="text" name="nombre" class="form-control" value="{{ vendedor.nombre }}" maxlength="25" required>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Usuario</label>
+        <input type="text" name="usuario" class="form-control" value="{{ vendedor.nombre_usuario }}" maxlength="25" required>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Nueva contraseña (opcional)</label>
+        <input type="password" name="contraseña" class="form-control" maxlength="25">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Comisión Panadería (%)</label>
+        <input type="number" name="comision_panaderia" class="form-control" step="0.01" value="{{ vendedor.comision_panaderia }}">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Comisión Bizcochería (%)</label>
+        <input type="number" name="comision_bizcocheria" class="form-control" step="0.01" value="{{ vendedor.comision_bizcocheria }}">
+      </div>
+
+      <div class="d-grid gap-2">
+        <button type="submit" class="btn btn-incolpan">Guardar cambios</button>
+        <a href="{{ url_for('vendedores.listar_vendedores') }}" class="btn btn-secondary">Cancelar</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

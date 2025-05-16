@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block title %}Reporte de Liquidaciones{% endblock %}
+{% block content %}
+
+<h3>Reporte de Liquidaciones</h3>
+
+<div class="card shadow-sm mb-3">
+  <div class="card-body">
+    <form method="get" action="{{ url_for('reportes_liquidaciones.export_liquidaciones_excel') }}" class="row g-2 mb-2" id="form_detallado">
+      <div class="col-md-3">
+        <label>Fecha Inicio</label>
+        <input type="date" name="fecha_inicio" class="form-control" required>
+      </div>
+      <div class="col-md-3">
+        <label>Fecha Fin</label>
+        <input type="date" name="fecha_fin" class="form-control" required>
+      </div>
+      <div class="col-md-3">
+        <label>Código Vendedor (opcional)</label>
+        <input type="text" name="codigo_vendedor" class="form-control" placeholder="Ej: 10001">
+      </div>
+      <div class="col-md-3 d-flex align-items-end">
+        <button type="submit" class="btn btn-success w-100">
+          <i class="bi bi-file-earmark-excel"></i> Exportar Detallado
+        </button>
+      </div>
+    </form>
+
+    <form method="get" action="{{ url_for('reportes_liquidaciones.export_liquidaciones_diario_excel') }}" class="row g-2">
+      <div class="col-md-3">
+        <label>Fecha Inicio</label>
+        <input type="date" name="fecha_inicio" class="form-control" required>
+      </div>
+      <div class="col-md-3">
+        <label>Fecha Fin</label>
+        <input type="date" name="fecha_fin" class="form-control" required>
+      </div>
+      <div class="col-md-3 d-flex align-items-end">
+        <button type="submit" class="btn btn-primary w-100">
+          <i class="bi bi-file-earmark-excel"></i> Exportar Consolidado Diario
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<p class="text-muted">
+  Al seleccionar las fechas se actualizará automáticamente el resumen gráfico de las liquidaciones.<br>
+  Puede filtrar y descargar tanto el reporte detallado como el consolidado diario.
+</p>
+
+<div class="card shadow-sm">
+  <div class="card-body">
+    <h5>Resumen Visual</h5>
+    <canvas id="chartVentas" height="100"></canvas>
+    <hr>
+    <canvas id="chartPagos" height="100"></canvas>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+let chartVentas, chartPagos;
+
+function actualizarGraficos(data) {
+    // Datos vendedores
+    const labels = Object.keys(data.vendedores);
+    const ventas = labels.map(v => data.vendedores[v].ventas);
+    const panaderia = labels.map(v => data.vendedores[v].panaderia);
+    const pagado = labels.map(v => data.vendedores[v].pagado);
+
+    chartVentas.data.labels = labels;
+    chartVentas.data.datasets[0].data = ventas;
+    chartVentas.data.datasets[1].data = panaderia;
+    chartVentas.data.datasets[2].data = pagado;
+    chartVentas.update();
+
+    // Datos formas de pago
+    chartPagos.data.datasets[0].data = [
+        data.formas_pago.Banco,
+        data.formas_pago.Efectivo,
+        data.formas_pago.Otros
+    ];
+    chartPagos.update();
+}
+
+function cargarResumen() {
+    const fechaInicio = document.querySelector('input[name="fecha_inicio"]').value;
+    const fechaFin = document.querySelector('input[name="fecha_fin"]').value;
+    if (!fechaInicio || !fechaFin) return;
+
+    fetch(`/reportes/liquidaciones/api/resumen?fecha_inicio=${fechaInicio}&fecha_fin=${fechaFin}`)
+        .then(res => res.json())
+        .then(data => actualizarGraficos(data))
+        .catch(err => console.error(err));
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    chartVentas = new Chart(document.getElementById('chartVentas'), {
+        type: 'bar',
+        data: {
+            labels: [],
+            datasets: [
+                { label: 'Ventas', data: [], backgroundColor: 'rgba(75, 192, 192, 0.6)' },
+                { label: 'A Panadería', data: [], backgroundColor: 'rgba(255, 206, 86, 0.6)' },
+                { label: 'Total Pagado', data: [], backgroundColor: 'rgba(153, 102, 255, 0.6)' }
+            ]
+        },
+        options: {
+            responsive: true,
+            plugins: { title: { display: true, text: 'Ventas y Pagos por Vendedor' } }
+        }
+    });
+
+    chartPagos = new Chart(document.getElementById('chartPagos'), {
+        type: 'pie',
+        data: {
+            labels: ['Banco', 'Efectivo', 'Otros'],
+            datasets: [{ data: [0, 0, 0], backgroundColor: ['rgba(54, 162, 235, 0.6)', 'rgba(255, 99, 132, 0.6)', 'rgba(255, 159, 64, 0.6)'] }]
+        },
+        options: { responsive: true, plugins: { title: { display: true, text: 'Formas de Pago Totales' } } }
+    });
+
+    document.querySelectorAll('input[name="fecha_inicio"], input[name="fecha_fin"]').forEach(input => {
+        input.addEventListener('change', cargarResumen);
+    });
+});
+</script>
+{% endblock %}

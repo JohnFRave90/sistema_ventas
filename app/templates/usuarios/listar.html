@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Usuarios registrados{% endblock %}
+
+{% block content %}
+<h4 class="mb-4">Listado de usuarios</h4>
+
+<div class="d-flex justify-content-end mb-3">
+  <a href="{{ url_for('usuarios.crear_usuario') }}" class="btn btn-success">
+    <i class="bi bi-person-plus-fill me-1"></i> Agregar Usuario
+  </a>
+</div>
+
+<table class="table table-bordered table-hover">
+  <thead class="table-light">
+    <tr>
+      <th>ID</th>
+      <th>Nombre de usuario</th>
+      <th>Rol</th>
+      <th>Acciones</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for u in usuarios %}
+    <tr>
+      <td>{{ u.id }}</td>
+      <td>{{ u.nombre_usuario }}</td>
+      <td>{{ u.rol | capitalize }}</td>
+      <td>
+        <a href="{{ url_for('usuarios.editar_usuario', id=u.id) }}" class="btn btn-sm btn-warning">
+          <i class="bi bi-pencil-square"></i>
+        </a>
+        <a href="{{ url_for('usuarios.eliminar_usuario', id=u.id) }}" class="btn btn-sm btn-danger" onclick="return confirm('¿Seguro que deseas eliminar este usuario?');">
+          <i class="bi bi-trash"></i>
+        </a>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

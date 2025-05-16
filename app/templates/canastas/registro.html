@@ -1,0 +1,102 @@
+{% extends 'base.html' %}
+{% block title %}Registrar Canasta{% endblock %}
+{% block content %}
+<div class="container mt-4">
+    <h2>Registrar Canasta</h2>
+
+    <form method="POST" autocomplete="off" class="mb-4">
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label for="codigo_barras" class="form-label">Código de Barras:</label>
+                <input type="text" id="codigo_barras" name="codigo_barras" value="{{ codigo_barras or '' }}" maxlength="25" class="form-control form-control-lg" required autofocus>
+            </div>
+
+            <div class="col-md-2 mb-3">
+                <label for="tamano" class="form-label">Tamaño:</label>
+                <select id="tamano" name="tamano" class="form-select">
+                    <option value="Pequeña" {% if tamano == 'Pequeña' %} selected {% endif %}>Pequeña</option>
+                    <option value="Mediana" {% if tamano == 'Mediana' %} selected {% endif %}>Mediana</option>
+                    <option value="Estandar" {% if tamano == 'Estandar' %} selected {% endif %}>Estandar</option>
+                    <option value="Grande" {% if tamano == 'Grande' %} selected {% endif %}>Grande</option>
+                </select>
+            </div>
+
+            <div class="col-md-2 mb-3">
+                <label for="color" class="form-label">Color:</label>
+                <select id="color" name="color" class="form-select">
+                    {% for c in ['Amarillo','Azul','Blanco','Gris Claro','Gris Oscuro','Morado','Negro','Naranja','Rojo','Verde','Vinotinto'] %}
+                    <option value="{{ c }}" {% if color == c %} selected {% endif %}>{{ c }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="col-md-2 mb-3">
+                <label for="estado" class="form-label">Estado:</label>
+                <select id="estado" name="estado" class="form-select">
+                    <option value="Nuevo" {% if estado == 'Nuevo' %} selected {% endif %}>Nuevo</option>
+                    <option value="Usado" {% if estado == 'Usado' %} selected {% endif %}>Usado</option>
+                </select>
+            </div>
+
+            <div class="col-md-2 mb-3">
+                <label for="actualidad" class="form-label">Actualidad:</label>
+                <select id="actualidad" name="actualidad" class="form-select">
+                    <option value="Disponible" {% if actualidad == 'Disponible' %} selected {% endif %}>Disponible</option>
+                    <option value="Prestada" {% if actualidad == 'Prestada' %} selected {% endif %}>Prestada</option>
+                    <option value="Fuera de servicio" {% if actualidad == 'Fuera de servicio' %} selected {% endif %}>Fuera de servicio</option>
+                </select>
+            </div>
+
+            <div class="col-md-2 d-flex align-items-end mb-3">
+                <button type="submit" class="btn btn-success w-100 btn-lg">Registrar</button>
+            </div>
+        </div>
+    </form>
+
+    <form action="{{ url_for('canastas.exportar_canastas_csv') }}" method="GET" class="mb-4">
+        <button type="submit" class="btn btn-outline-success">Exportar Canastas a CSV</button>
+    </form>
+
+    <h4>Canastas Registradas</h4>
+    <table class="table table-bordered table-striped">
+        <thead>
+            <tr>
+                <th>Código de Barras</th>
+                <th>Tamaño</th>
+                <th>Color</th>
+                <th>Estado</th>
+                <th>Actualidad</th>
+                <th>Fecha de Registro</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for c in canastas %}
+            <tr>
+                <td>{{ c.codigo_barras }}</td>
+                <td>{{ c.tamaño }}</td>
+                <td>{{ c.color }}</td>
+                <td>{{ c.estado }}</td>
+                <td>{{ c.actualidad }}</td>
+                <td>{{ c.fecha_registro.strftime('%Y-%m-%d %H:%M') }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<script>
+    window.onload = function() {
+        const codigoInput = document.getElementById("codigo_barras");
+        codigoInput.focus();
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% for category, message in messages %}
+                {% if category == 'success' %}
+                    codigoInput.value = "";
+                    codigoInput.focus();
+                {% endif %}
+            {% endfor %}
+        {% endwith %}
+    }
+</script>
+{% endblock %}

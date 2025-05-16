@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Liquidaciones{% endblock %}
+{% block content %}
+<h3>Liquidaciones</h3>
+
+<a href="{{ url_for('liquidaciones.crear_liquidacion') }}" class="btn btn-primary mb-2">
+  <i class="bi bi-plus-circle"></i> Agregar Liquidación
+</a>
+
+<!-- Filtro -->
+<form method="get" class="row g-2 mb-3">
+  <div class="col-md-3">
+    <input type="date" name="fecha_inicio" value="{{ request.args.get('fecha_inicio', '') }}" class="form-control" placeholder="Fecha desde">
+  </div>
+  <div class="col-md-3">
+    <input type="date" name="fecha_fin" value="{{ request.args.get('fecha_fin', '') }}" class="form-control" placeholder="Fecha hasta">
+  </div>
+  <div class="col-md-3">
+    <input type="text" name="codigo" value="{{ request.args.get('codigo', '') }}" class="form-control" placeholder="Código LQ-XXXX">
+  </div>
+  <div class="col-md-3">
+    <button type="submit" class="btn btn-success"><i class="bi bi-search"></i> Filtrar</button>
+    <a href="{{ url_for('liquidaciones.listar_liquidaciones') }}" class="btn btn-secondary">Limpiar</a>
+  </div>
+</form>
+
+<table class="table table-sm table-striped">
+  <thead>
+    <tr>
+      <th>LQ</th>
+      <th>Fecha</th>
+      <th>Cod Vendedor</th>
+      <th>Nombre Vendedor</th>
+      <th>Venta</th>
+      <th>Venta Total</th>
+      <th>Comisión</th>
+      <th>A Panadería</th>
+      <th>Descuento Cambios</th>
+      <th>Total a Pagar</th>
+      <th>Acciones</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for l in liquidaciones %}
+      <tr>
+        <td>{{ l.codigo }}</td>
+        <td>{{ l.fecha.strftime('%d/%m/%Y') }}</td>
+        <td>{{ l.codigo_vendedor }}</td>
+        <td>
+          {% set vendedor = vendedores_dict.get(l.codigo_vendedor) %}
+          {{ vendedor.nombre if vendedor else '-' }}
+        </td>
+        <td>{{ "VT-%04d"|format(l.codigo_venta) }}</td>
+        <td>${{ "{:,.0f}".format(l.valor_venta) }}</td>
+        <td>${{ "{:,.0f}".format(l.valor_comision) }}</td>
+        <td>${{ "{:,.0f}".format(l.valor_venta - l.valor_comision) }}</td>
+        <td>${{ "{:,.0f}".format(l.descuento_cambios) }}</td>
+        <td>${{ "{:,.0f}".format(l.valor_a_pagar) }}</td>
+        <td>
+          <a href="{{ url_for('liquidaciones.exportar_liquidacion_pdf', id=l.id) }}" class="btn btn-sm btn-outline-dark" title="PDF">
+            <i class="bi bi-file-earmark-pdf-fill"></i>
+          </a>
+          {% if current_user.rol == 'administrador' %}
+            <a href="{{ url_for('liquidaciones.editar_liquidacion', id=l.id) }}" class="btn btn-sm btn-outline-warning" title="Editar">
+              <i class="bi bi-pencil-fill"></i>
+            </a>
+            <form method="post" action="{{ url_for('liquidaciones.eliminar_liquidacion', id=l.id) }}" style="display:inline;" onsubmit="return confirm('¿Seguro desea eliminar esta liquidación?');">
+              <button class="btn btn-sm btn-outline-danger" title="Eliminar">
+                <i class="bi bi-trash-fill"></i>
+              </button>
+            </form>
+          {% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Listado de Extras{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-2 py-3">
+  <h4 class="mb-4 text-center">Listado de Extras</h4>
+  {% if current_user.rol in ['administrador','vendedor'] %}  
+  <div class="d-flex justify-content-end mb-3">
+    <a href="{{ url_for('extras.crear_extra') }}" class="btn btn-success">
+      <i class="bi bi-plus-square-dotted"></i> Nuevo Extra
+    </a>
+    {% endif %}    
+  </div>
+
+  <!-- Filtros -->
+  <form method="get" class="row g-2 mb-3">
+    <div class="col-12 col-sm-5">
+      <input type="date" name="fecha" class="form-control" value="{{ filtro_fecha or '' }}">
+    </div>
+    <div class="col-12 col-sm-5">
+      <input type="text" name="consecutivo" class="form-control" placeholder="Consecutivo" value="{{ filtro_consecutivo or '' }}">
+    </div>
+    <div class="col-12 col-sm-2 d-grid">
+      <button type="submit" class="btn btn-primary">Buscar</button>
+    </div>
+  </form>
+
+  <div class="table-responsive">
+    <table class="table table-hover align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>Consecutivo</th>
+          <th>Fecha</th>
+          <th>Vendedor</th>
+          <th>Total</th>
+          <th>Comentarios</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in extras %}
+        <tr>
+          <td>{{ e.consecutivo }}</td>
+          <td>{{ e.fecha.strftime('%Y-%m-%d') }}</td>
+          <td>{{ vendedores[e.codigo_vendedor] }}</td>
+          <td><strong>$</strong>{{ '{:,}'.format(e.total) }}</td>
+          <td>{{ e.comentarios or '-' }}</td>
+          <td>
+            <div class="d-flex gap-2">
+              <!-- PDF accesible para todos -->
+              <a href="{{ url_for('extras.export_pdf_extra', ext_id=e.id) }}"
+                 class="btn btn-outline-secondary btn-sm"
+                 title="Exportar PDF">
+                <i class="bi bi-file-earmark-pdf"></i>
+              </a>
+              <!-- Editar y Eliminar solo para roles admin -->
+              {% if current_user.rol in ['administrador'] %}
+              <a href="{{ url_for('extras.editar_extra', eid=e.id) }}"
+                 class="btn btn-outline-primary btn-sm"
+                 title="Editar">
+                <i class="bi bi-pencil-square"></i>
+              </a>
+              <form action="{{ url_for('extras.eliminar_extra', eid=e.id) }}"
+                    method="POST"
+                    onsubmit="return confirm('¿Estás seguro de eliminar este registro?');">
+                <button type="submit" class="btn btn-outline-danger btn-sm" title="Eliminar">
+                  <i class="bi bi-trash3"></i>
+                </button>
+              </form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="6" class="text-center">No hay extras registrados.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

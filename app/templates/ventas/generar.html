@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block title %}Generar Venta{% endblock %}
+{% block content %}
+<div class="container-fluid px-2 py-3">
+  <h4 class="mb-4 text-center">Generar Venta</h4>
+  <div class="row justify-content-center">
+    <div class="col-12 col-md-8">
+
+      {# ———— Formulario 1: Selección Fecha y Vendedor ———— #}
+      <form method="get" class="card p-3 shadow-sm bg-light mb-3">
+        <div class="row gx-2 gy-2 small">
+          <div class="col-6 col-md-4">
+            <label class="form-label">Fecha</label>
+            <input type="date" name="fecha" value="{{ fecha_val }}" class="form-control form-control-sm" onchange="this.form.submit()" required>
+          </div>
+          {% if vendedores %}
+          <div class="col-6 col-md-8">
+            <label class="form-label">Vendedor</label>
+            <select name="vendedor" class="form-select form-select-sm" onchange="this.form.submit()" required>
+              <option value="">---</option>
+              {% for v in vendedores %}
+                <option value="{{ v.codigo_vendedor }}"
+                  {% if v.codigo_vendedor==selected_vendedor %}selected{% endif %}>
+                  {{ v.nombre }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+          {% endif %}
+        </div>
+      </form>
+
+      {# ———— Formulario 2: Previsualizar (GET) ———— #}
+      <form action="{{ url_for('ventas.generar_venta') }}" method="get"
+            class="card p-3 shadow-sm bg-light mb-4">
+        {# ocultos indispensables para reconstruir el estado #}
+        <input type="hidden" name="fecha"  value="{{ fecha_val }}">
+        <input type="hidden" name="vendedor" value="{{ selected_vendedor }}">
+        <div class="row gx-2 gy-2 small">
+          <div class="col-6 col-md-3">
+            <label class="form-label">Dev. Ant.</label>
+            <select name="codigo_dev_anterior" class="form-select form-select-sm">
+              <option value="">---</option>
+              {% for d in devols_list %}
+                <option value="{{ d.consecutivo }}"
+                  {% if d.consecutivo==code_dev_ant %}selected{% endif %}>
+                  {{ d.consecutivo }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-6 col-md-3">
+            <label class="form-label">Pedido</label>
+            <select name="codigo_pedido" class="form-select form-select-sm">
+              <option value="">---</option>
+              {% for p in pedidos_list %}
+                <option value="{{ p.consecutivo }}"
+                  {% if p.consecutivo==code_pedido %}selected{% endif %}>
+                  {{ p.consecutivo }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-6 col-md-3">
+            <label class="form-label">Extra</label>
+            <select name="codigo_extra" class="form-select form-select-sm">
+              <option value="">---</option>
+              {% for ex in extras_list %}
+                <option value="{{ ex.consecutivo }}"
+                  {% if ex.consecutivo==code_extra %}selected{% endif %}>
+                  {{ ex.consecutivo }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-6 col-md-3">
+            <label class="form-label">Dev. Día</label>
+            <select name="codigo_dev_dia" class="form-select form-select-sm">
+              <option value="">---</option>
+              {% for d in devols_list %}
+                <option value="{{ d.consecutivo }}"
+                  {% if d.consecutivo==code_dev_dia %}selected{% endif %}>
+                  {{ d.consecutivo }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="d-flex justify-content-end mt-3">
+          <button type="submit" class="btn btn-sm btn-secondary me-2">Previsualizar</button>
+        </div>
+      </form>
+
+      {# ———— Formulario 3: Confirmar Venta (POST) ———— #}
+      <form action="{{ url_for('ventas.generar_venta') }}" method="post"
+            class="text-end mb-4">
+        {# oculta fecha y vendedor para POST #}
+        <input type="hidden" name="fecha"     value="{{ fecha_val }}">
+        <input type="hidden" name="vendedor"  value="{{ selected_vendedor }}">
+        <input type="hidden" name="codigo_dev_anterior" value="{{ code_dev_ant }}">
+        <input type="hidden" name="codigo_pedido"        value="{{ code_pedido }}">
+        <input type="hidden" name="codigo_extra"         value="{{ code_extra }}">
+        <input type="hidden" name="codigo_dev_dia"       value="{{ code_dev_dia }}">
+        <button type="submit" name="confirm" class="btn btn-sm btn-primary">
+          Confirmar Venta
+        </button>
+      </form>
+
+      {# ———— Tabla de Previsualización ———— #}
+      {# Tabla de previsualización #}
+      {% if breakdown %}
+      <div class="table-responsive">
+        <table class="table table-sm table-bordered small">
+          <thead class="table-light">
+            <tr>
+              <th>Código</th><th>Nombre</th>
+              <th>D.Ant.</th><th>Pedido</th><th>Extra</th><th>D.Día</th>
+              <th>Cant.</th><th>Valor</th><th>Com.</th><th>P.Pan</th>
+            </tr>
+          </thead>
+          <tbody>
+          {% for item in breakdown %}
+            <tr>
+              <td>{{ item.codigo }}</td>
+              <td>{{ item.nombre }}</td>
+              <td>{{ item.dev_ant }}</td>
+              <td>{{ item.pedido }}</td>
+              <td>{{ item.extra }}</td>
+              <td>{{ item.dev_dia }}</td>
+              <td>{{ item.total }}</td>
+              <td class="text-end">{{ "{:,.0f}".format(item.valor) }}</td>
+              <td class="text-end">{{ "{:,.0f}".format(item.comision) }}</td>
+              <td class="text-end">{{ "{:,.0f}".format(item.pagar_pan) }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+          <tfoot class="table-light">
+            <tr>
+              <th colspan="7" class="text-end">Totales:</th>
+              <th class="text-end">{{ "{:,.0f}".format(total_valor)    }}</th>
+              <th class="text-end">{{ "{:,.0f}".format(total_comision) }}</th>
+              <th class="text-end">{{ "{:,.0f}".format(total_pagar)    }}</th>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      {% endif %}
+
+    </div>
+  </div>
+</div>
+{% endblock %}

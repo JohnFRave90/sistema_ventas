@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% block title %}Editar Pedido {{ pedido.consecutivo }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-2 py-3">
+  <h4 class="text-center mb-4">Editar pedido {{ pedido.consecutivo }}</h4>
+  <div class="row justify-content-center">
+    <div class="col-12 col-md-8">
+      <form method="POST" class="card p-3 shadow-sm bg-light">
+
+        <!-- Fecha -->
+        <div class="mb-3">
+          <label class="form-label">Fecha</label>
+          <input type="date"
+                 name="fecha"
+                 class="form-control"
+                 value="{{ pedido.fecha.isoformat() }}"
+                 required>
+        </div>
+
+        <!-- Vendedor -->
+        <div class="mb-3">
+          <label class="form-label">Vendedor</label>
+          {% if current_user.rol=='administrador' %}
+            <select name="vendedor" class="form-select" required>
+              <option value="">Seleccione...</option>
+              {% for v in vendedores %}
+              <option value="{{ v.codigo_vendedor }}"
+                      {% if v.codigo_vendedor==pedido.codigo_vendedor %}selected{% endif %}>
+                {{ v.nombre }}
+              </option>
+              {% endfor %}
+            </select>
+          {% else %}
+            <input type="hidden" name="vendedor" value="{{ pedido.codigo_vendedor }}">
+            <input type="text" class="form-control" disabled
+                   value="{{ vendedores[pedido.codigo_vendedor] }}">
+          {% endif %}
+        </div>
+
+        <!-- Productos dinámicos -->
+        <div class="mb-3">
+          <label class="form-label">Productos</label>
+          <div id="productos-container">
+            {% for it in items %}
+            <div class="row g-2 mb-2 producto-row align-items-center">
+              <div class="col-6">
+                <select name="producto" class="form-select producto-select" required>
+                  <option value="">Seleccione...</option>
+                  {% for p in productos|sort(attribute='nombre') %}
+                  <option value="{{ p.codigo }}"
+                          data-precio="{{ p.precio }}"
+                          {% if p.codigo==it.codigo %}selected{% endif %}>
+                    {{ p.nombre }}
+                  </option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-3">
+                <input type="number"
+                       name="cantidad"
+                       class="form-control cantidad-input"
+                       min="1"
+                       value="{{ it.cantidad }}"
+                       required>
+              </div>
+              <div class="col-2 text-end">
+                <span class="subtotal-linea"></span>
+              </div>
+              <div class="col-1 text-end">
+                <button type="button" class="btn btn-outline-danger btn-remove p-1">×</button>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          <div class="d-grid mt-2">
+            <button type="button" id="add-producto" class="btn btn-secondary btn-sm">
+              Agregar producto
+            </button>
+          </div>
+        </div>
+
+        <!-- Total -->
+        <div class="mb-3 text-end">
+          <strong>Total: <span id="total-pedido"></span></strong>
+        </div>
+
+        <!-- Comentarios -->
+        <div class="mb-3">
+          <label class="form-label">Comentarios</label>
+          <textarea name="comentarios" class="form-control" rows="3">{{ pedido.comentarios }}</textarea>
+        </div>
+
+        <div class="d-grid">
+          <button class="btn btn-incolpan">Guardar Cambios</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+  /* idéntico al crear.html */
+  function actualizarFila(r) {
+    const sel = r.querySelector('.producto-select');
+    const qty = +r.querySelector('.cantidad-input').value || 0;
+    const price = +sel.selectedOptions[0]?.dataset.precio || 0;
+    r.querySelector('.subtotal-linea').textContent =
+      price*qty
+      ? (price*qty).toLocaleString('es-CO',{maximumFractionDigits:0})
+      : '';
+  }
+  function actualizarTotal() {
+    let sum=0;
+    document.querySelectorAll('.producto-row').forEach(r=>{
+      const txt = r.querySelector('.subtotal-linea').textContent.replace(/\./g,'');
+      sum += +txt||0;
+    });
+    document.getElementById('total-pedido').textContent =
+      '$'+sum.toLocaleString('es-CO',{maximumFractionDigits:0});
+  }
+  function bindEvents(r){
+    r.querySelector('.producto-select').onchange = ()=>{ actualizarFila(r); actualizarTotal(); };
+    r.querySelector('.cantidad-input').oninput   = ()=>{ actualizarFila(r); actualizarTotal(); };
+    r.querySelector('.btn-remove').onclick       = ()=>{
+      if(document.querySelectorAll('.producto-row').length>1){
+        r.remove(); actualizarTotal();
+      }
+    };
+  }
+  document.addEventListener('DOMContentLoaded', ()=>{
+    const ctr = document.getElementById('productos-container');
+    const first = ctr.querySelector('.producto-row');
+    bindEvents(first);
+    document.getElementById('add-producto').onclick = ()=>{
+      const clone = first.cloneNode(true);
+      clone.querySelector('.cantidad-input').value = 1;
+      clone.querySelector('.subtotal-linea').textContent = '';
+      bindEvents(clone);
+      ctr.appendChild(clone);
+    };
+    document.querySelectorAll('.producto-row').forEach(r=>actualizarFila(r));
+    actualizarTotal();
+  });
+</script>
+{% endblock %}

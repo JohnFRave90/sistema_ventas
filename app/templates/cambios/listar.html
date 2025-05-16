@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Cambios{% endblock %}
+{% block content %}
+<h3>Cambios</h3>
+
+<a href="{{ url_for('cambios.crear_cambio') }}" class="btn btn-primary mb-2">
+  <i class="bi bi-plus-circle"></i> Agregar Cambio
+</a>
+<!-- Filtro Cambios -->
+<form method="get" class="row g-2 mb-3">
+  <div class="col-md-3">
+    <input type="date" name="fecha_inicio" value="{{ request.args.get('fecha_inicio', '') }}" class="form-control" placeholder="Fecha desde">
+  </div>
+  <div class="col-md-3">
+    <input type="date" name="fecha_fin" value="{{ request.args.get('fecha_fin', '') }}" class="form-control" placeholder="Fecha hasta">
+  </div>
+  <div class="col-md-3">
+    <input type="text" name="codigo_vendedor" value="{{ request.args.get('codigo_vendedor', '') }}" class="form-control" placeholder="Cod Vendedor">
+  </div>
+  <div class="col-md-3">
+    <button type="submit" class="btn btn-success"><i class="bi bi-search"></i> Filtrar</button>
+    <a href="{{ url_for('cambios.listar_cambios') }}" class="btn btn-secondary">Limpiar</a>
+  </div>
+</form>
+
+<table class="table table-sm table-striped">
+  <thead>
+    <tr>
+      <th>Fecha</th>
+      <th>Cod Vendedor</th>
+      <th>Nombre Vendedor</th>
+      <th>Valor Cambio</th>
+      <th>Acciones</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for c in cambios %}
+      <tr>
+        <td>{{ c.fecha.strftime('%d/%m/%Y') }}</td>
+        <td>{{ c.codigo_vendedor }}</td>
+        <td>
+          {% set vendedor = vendedores_dict.get(c.codigo_vendedor) %}
+          {{ vendedor.nombre if vendedor else '-' }}
+        </td>
+        <td>${{ "{:,.0f}".format(c.valor_cambio) }}</td>
+        <td>
+          <a href="{{ url_for('cambios.editar_cambio', id=c.id) }}" class="btn btn-sm btn-outline-warning" title="Editar">
+            <i class="bi bi-pencil-fill"></i>
+          </a>
+          <form method="post" action="{{ url_for('cambios.eliminar_cambio', id=c.id) }}" style="display:inline;" onsubmit="return confirm('¿Seguro desea eliminar este cambio?');">
+            <button class="btn btn-sm btn-outline-danger" title="Eliminar">
+              <i class="bi bi-trash-fill"></i>
+            </button>
+          </form>
+        </td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

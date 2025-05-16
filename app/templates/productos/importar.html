@@ -1,0 +1,17 @@
+{# templates/productos/importar.html #}
+{% extends "base.html" %}
+{% block title %}Importar Productos{% endblock %}
+
+{% block content %}
+<h4 class="mb-4">Importar productos desde archivo CSV</h4>
+
+<form method="POST" enctype="multipart/form-data">
+  <div class="mb-3">
+    <label class="form-label">Archivo CSV</label>
+    <input type="file" name="archivo" class="form-control" accept=".csv" required>
+    <small class="form-text text-muted">El archivo debe tener las columnas: <code>codigo,nombre,precio,categoria</code>.</small>
+  </div>
+  <button type="submit" class="btn btn-primary">Importar</button>
+  <a href="{{ url_for('productos.listar_productos') }}" class="btn btn-secondary">Cancelar</a>
+</form>
+{% endblock %}

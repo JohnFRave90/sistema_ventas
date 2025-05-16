@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block title %}Editar Liquidación{% endblock %}
+{% block content %}
+<h3>Editar Liquidación {{ liquidacion.codigo }}</h3>
+
+<table class="table table-sm">
+  <tr>
+    <th>Fecha</th>
+    <td>{{ liquidacion.fecha.strftime('%d/%m/%Y') }}</td>
+    <th>Vendedor</th>
+    <td>{{ vendedor.codigo_vendedor }} - {{ vendedor.nombre }}</td>
+  </tr>
+  <tr>
+    <th>Venta</th>
+    <td>{{ "VT-%04d"|format(venta.id) }}</td>
+    <th></th>
+    <td></td>
+  </tr>
+</table>
+
+<hr>
+<h4>Resumen de Liquidación</h4>
+<table class="table table-sm">
+  <tr>
+    <th>Venta Total</th>
+    <td>${{ "{:,.0f}".format(venta.total_venta) }}</td>
+    <th>Comisión</th>
+    <td>${{ "{:,.0f}".format(venta.comision) }}</td>
+  </tr>
+  <tr>
+    <th>A Panadería</th>
+    <td>${{ "{:,.0f}".format(venta.total_venta - venta.comision) }}</td>
+    <th>Descuento Cambios</th>
+    <td>${{ "{:,.0f}".format(descuento_cambios) }}</td>
+  </tr>
+  <tr>
+    <th colspan="2">Total a Pagar</th>
+    <td colspan="2" id="total_a_pagar_display">${{ "{:,.0f}".format(venta.total_venta - venta.comision - descuento_cambios) }}</td>
+  </tr>
+</table>
+
+<form method="post">
+  <div class="row">
+    <div class="col-md-4">
+      <label>Pago Banco</label>
+      <input type="number" step="0.01" name="pago_banco" class="form-control" value="{{ liquidacion.pago_banco }}" required>
+    </div>
+    <div class="col-md-4">
+      <label>Pago Efectivo</label>
+      <input type="number" step="0.01" name="pago_efectivo" class="form-control" value="{{ liquidacion.pago_efectivo }}" required>
+    </div>
+    <div class="col-md-4">
+      <label>Pago Otros</label>
+      <input type="number" step="0.01" name="pago_otros" class="form-control" value="{{ liquidacion.pago_otros }}">
+    </div>
+    <div class="col-md-12 mt-2">
+      <label>Comentarios</label>
+      <textarea name="comentarios" class="form-control" rows="3">{{ liquidacion.comentarios }}</textarea>
+    </div>
+
+    <!-- Resumen dinámico optimizado -->
+    <div class="col-md-12 mt-3 p-3 border rounded bg-white shadow-sm">
+      <h5 class="mb-3 text-primary">Resumen Dinámico</h5>
+      <table class="table table-sm table-bordered">
+        <tr>
+          <th>Venta Total</th>
+          <td>${{ "{:,.0f}".format(venta.total_venta) }}</td>
+          <th>Comisión</th>
+          <td>${{ "{:,.0f}".format(venta.comision) }}</td>
+        </tr>
+        <tr>
+          <th>A Panadería</th>
+          <td>${{ "{:,.0f}".format(venta.total_venta - venta.comision) }}</td>
+          <th>Descuento Cambios</th>
+          <td>${{ "{:,.0f}".format(descuento_cambios) }}</td>
+        </tr>
+        <tr class="table-info">
+          <th colspan="2" class="text-center">Total a Pagar</th>
+          <td colspan="2" id="total_pagar" class="fw-bold text-end">{{ "{:,.0f}".format(venta.total_venta - venta.comision - descuento_cambios) }}</td>
+        </tr>
+        <tr class="table-light">
+          <th colspan="2" class="text-center">Total Pagado</th>
+          <td colspan="2" id="total_pagado" class="fw-bold text-end">$0</td>
+        </tr>
+      </table>
+      <div id="alerta_diferencia" class="fw-bold mt-2"></div>
+    </div>
+
+    <div class="col-md-12 mt-3">
+      <button type="submit" class="btn btn-success">
+        <i class="bi bi-cash-coin"></i> Guardar Cambios
+      </button>
+      <a href="{{ url_for('liquidaciones.listar_liquidaciones') }}" class="btn btn-secondary">
+        <i class="bi bi-x-circle"></i> Cancelar
+      </a>
+    </div>
+  </div>
+</form>
+
+<script>
+function actualizarResumen() {
+  let pagoBanco = parseFloat(document.querySelector('input[name="pago_banco"]').value) || 0;
+  let pagoEfectivo = parseFloat(document.querySelector('input[name="pago_efectivo"]').value) || 0;
+  let pagoOtros = parseFloat(document.querySelector('input[name="pago_otros"]').value) || 0;
+
+  let totalPagado = pagoBanco + pagoEfectivo + pagoOtros;
+  let totalAPagar = {{ venta.total_venta - venta.comision - descuento_cambios }};
+  
+  document.getElementById('total_pagado').textContent = '$' + totalPagado.toLocaleString();
+
+  let diferencia = totalPagado - totalAPagar;
+
+  if (Math.abs(diferencia) <= 50) {
+    document.getElementById('alerta_diferencia').textContent = '✔ Los pagos coinciden (dentro del margen permitido de $50).';
+    document.getElementById('alerta_diferencia').classList.remove('text-danger');
+    document.getElementById('alerta_diferencia').classList.add('text-success');
+  } else {
+    document.getElementById('alerta_diferencia').textContent = '⚠ La suma de pagos no coincide con el total a pagar (diferencia: $' + diferencia.toLocaleString() + ').';
+    document.getElementById('alerta_diferencia').classList.remove('text-success');
+    document.getElementById('alerta_diferencia').classList.add('text-danger');
+  }
+}
+
+['pago_banco', 'pago_efectivo', 'pago_otros'].forEach(function(name) {
+  let input = document.querySelector('input[name="' + name + '"]');
+  if (input) {
+    input.addEventListener('input', actualizarResumen);
+  }
+});
+
+window.onload = actualizarResumen;
+</script>
+{% endblock %}

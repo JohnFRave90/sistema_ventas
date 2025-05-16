@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Registrar usuario{% endblock %}
+
+{% block content %}
+<div class="text-center mb-4">
+  <img src="{{ url_for('static', filename='logo_incolpan.png') }}" alt="Logo Incolpan" style="max-height: 120px;">
+</div>
+
+<div class="row justify-content-center">
+  <div class="col-md-6">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h4 class="text-center mb-4">Registrar nuevo usuario</h4>
+
+        <form method="POST">
+          <div class="mb-3">
+            <label class="form-label">Nombre de usuario</label>
+            <input type="text" class="form-control" name="username" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Contraseña</label>
+            <input type="password" class="form-control" name="password" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Rol</label>
+            <select class="form-select" name="rol" required>
+              <option value="administrador">Administrador</option>
+              <option value="semiadmin">Semiadministrador</option>
+              <option value="vendedor">Vendedor</option>
+            </select>
+          </div>
+          <button type="submit" class="btn btn-incolpan w-100">Registrar</button>
+        </form>
+
+        <p class="text-center mt-3">
+          <a href="{{ url_for('auth.login') }}">¿Ya tienes cuenta? Inicia sesión</a>
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

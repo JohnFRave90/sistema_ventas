@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Sistema de Ventas Incolpan{% endblock %}</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
+
+  <style>
+    :root {
+      --incolpan-rojo: #ff6600;
+      --incolpan-beige: #ffffff;
+    }
+    .navbar-incolpan { background-color: var(--incolpan-rojo); z-index: 1040; }
+    .bg-incolpan   { background-color: var(--incolpan-beige); }
+    .btn-incolpan  { background-color: var(--incolpan-rojo); color: #fff !important; border: none; }
+    .btn-incolpan:hover, .btn-incolpan:focus, .btn-incolpan:active {
+      background-color: #660000;
+      color: #fff !important;
+      text-decoration: none;
+      box-shadow: none;
+    }
+
+    @media (min-width: 992px) {
+      .sidebar-fixed {
+        position: fixed;
+        top: 80px;
+        left: 0;
+        width: 240px;
+        height: calc(100vh - 56px);
+        background-color: #f8f9fa;
+        overflow-y: auto;
+        border-right: 1px solid #ddd;
+        z-index: 1020;
+      }
+      .content-with-sidebar {
+        margin-left: 240px;
+        padding-top: 56px;
+      }
+    }
+    /* Para todas las pantallas */
+    body {
+       padding-top: 56px; /* siempre bajo navbar fijo */
+    }
+  </style>
+</head>
+<body class="bg-incolpan">
+
+  <!-- NAVBAR -->
+  <nav class="navbar navbar-expand-lg navbar-incolpan navbar-dark shadow fixed-top">
+    <div class="container-fluid">
+      {% if current_user.is_authenticated and request.endpoint != 'auth.login' %}
+        <button class="btn btn-outline-light me-2 d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebarMobile">
+          <i class="bi bi-list fs-4"></i>
+        </button>
+      {% endif %}
+      <a class="navbar-brand d-flex align-items-center" href="{{ url_for('dashboard.dashboard') }}">
+        <img src="{{ url_for('static', filename='logo_incolpan.png') }}" alt="Logo" style="height:50px; width:auto;">
+      </a>
+      <div class="mx-auto">
+        <span class="navbar-text fs-4 fw-bold text-white">Sistema de Ventas - Incolpan</span>
+      </div>
+      <div class="d-flex">
+        <ul class="navbar-nav flex-row">
+          {% if current_user.is_authenticated %}
+            <li class="nav-item me-2">
+              <span class="nav-link text-white">👤 {{ current_user.nombre_usuario }}</span>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link text-white" href="{{ url_for('auth.logout') }}">Cerrar sesión</a>
+            </li>
+          {% endif %}
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  {% if current_user.is_authenticated and request.endpoint != 'auth.login' %}
+    <!-- SIDEBAR OFFCANVAS (móvil) -->
+    <div class="offcanvas offcanvas-start d-lg-none" tabindex="-1" id="sidebarMobile"
+         aria-labelledby="sidebarLabelMobile"
+         style="top:56px; height:calc(100% - 56px); z-index: 1050;">
+      <div class="offcanvas-header">
+        <h5 id="sidebarLabelMobile">Menú</h5>
+        <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas"></button>
+      </div>
+      <div class="offcanvas-body p-0">
+        {% include 'partials/sidebar_menu.html' %}
+      </div>
+    </div>
+
+    <!-- SIDEBAR FIJO (escritorio) -->
+    <div class="d-none d-lg-block sidebar-fixed">
+      {% include 'partials/sidebar_menu.html' %}
+    </div>
+  {% endif %}
+
+  <!-- ALERTAS FLASH -->
+  <div id="flash-container" class="position-relative">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+        <div class="alert alert-{{ category }} alert-dismissible fade show position-absolute top-0 start-50 translate-middle-x mt-5 d-flex align-items-center gap-2 px-4 py-3 shadow" role="alert" style="z-index: 1050; min-width: 300px;">
+          {% if category == 'danger' %}
+            <i class="bi bi-x-circle-fill text-danger fs-5"></i>
+          {% elif category == 'success' %}
+            <i class="bi bi-check-circle-fill text-success fs-5"></i>
+          {% elif category == 'warning' %}
+            <i class="bi bi-exclamation-triangle-fill text-warning fs-5"></i>
+          {% elif category == 'info' %}
+            <i class="bi bi-info-circle-fill text-info fs-5"></i>
+          {% else %}
+            <i class="bi bi-bell-fill text-primary fs-5"></i>
+          {% endif %}
+          <span class="flex-grow-1">{{ message }}</span>
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+      {% endfor %}
+    {% endwith %}
+  </div>
+
+  <!-- CONTENIDO PRINCIPAL -->
+  <main class="{% if current_user.is_authenticated and request.endpoint != 'auth.login' %}content-with-sidebar{% endif %}">
+    <div class="container mt-4">
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    setTimeout(() => document.querySelectorAll('.alert').forEach(a => a.classList.remove('show')), 15000);
+    window.addEventListener('DOMContentLoaded', () => {
+      if (document.querySelectorAll('.alert-danger').length) {
+        new Audio("{{ url_for('static', filename='alert.mp3') }}").play();
+      }
+    });
+  </script>
+</body>
+</html>
