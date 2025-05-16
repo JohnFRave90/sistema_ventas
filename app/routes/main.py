@@ -1,8 +1,9 @@
-from flask import Blueprint
+from flask import Blueprint, redirect, url_for
 
 main_bp = Blueprint("main", __name__)
 
 @main_bp.route("/")
 def home():
-    return "¡Flask está funcionando!"
+    return redirect(url_for("auth.login")) 
+
 
