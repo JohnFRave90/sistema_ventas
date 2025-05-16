@@ -1,8 +1,0 @@
-.class
-__pycache__/
-*.pyc
-instance/
-venv/
-*.log
-migrations/
-cifrado.py

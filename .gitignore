@@ -1,0 +1,30 @@
+# Compiled files
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+*.so
+
+# Virtual environments
+venv/
+.env/
+.envrc
+
+# Flask instance folder
+instance/
+
+# Logs
+*.log
+
+# Migrations (si es Flask-Migrate o Django)
+migrations/
+
+# Bytecode & cache de editores
+*.swp
+*.swo
+.idea/
+.vscode/
+
+# Config locales
+.DS_Store
+*.sqlite3
