@@ -9,6 +9,8 @@ __pycache__/
 venv/
 .env/
 .envrc
+.env
+.flaskenv
 
 # Flask instance folder
 instance/
@@ -28,3 +30,6 @@ migrations/
 # Config locales
 .DS_Store
 *.sqlite3
+
+cifrado.py
+
