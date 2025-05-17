@@ -3,7 +3,10 @@
 
 {% block content %}
 
-<h3 class="text-center mb-4">Bienvenido, {{ current_user.user.nombre if current_user.rol == 'vendedor' else current_user.nombre_usuario }}</h3>
+<h3 class="text-center mb-4">
+  Bienvenido, 
+  {{ current_user.nombre_usuario if current_user.rol != 'vendedor' else current_user.nombre }}
+</h3>
 
 <!-- RESUMEN DE INDICADORES -->
 <div class="row text-center mb-5">

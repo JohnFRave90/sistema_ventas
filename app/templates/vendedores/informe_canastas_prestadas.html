@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block title %}Informe de Canastas Prestadas{% endblock %}
+{% block content %}
+<div class="container mt-4">
+    <h2>Informe de Canastas Prestadas por Vendedor</h2>
+
+    {% if canastas_prestadas %}
+    <table class="table table-bordered table-striped">
+        <thead>
+            <tr>
+                <th>Vendedor</th>
+                <th>Canastas Prestadas</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for v in canastas_prestadas %}
+            <tr>
+                <td>{{ v.nombre }}</td>
+                <td>{{ v.canastas_prestadas_activas }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <a href="{{ url_for('movimientos.informe_canastas_prestadas_por_vendedor', export=True) }}"
+       class="btn btn-outline-success mt-3">
+       Exportar a CSV
+    </a>
+    {% else %}
+        <p>No se encontraron canastas prestadas activas.</p>
+    {% endif %}
+</div>
+{% endblock %}

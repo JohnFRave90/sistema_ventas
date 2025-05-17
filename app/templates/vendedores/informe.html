@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+{% block title %}Informe de Vendedores{% endblock %}
+{% block content %}
+<div class="container mt-4">
+    <h2>Informe de Vendedores</h2>
+
+    <form method="GET" action="{{ url_for('movimientos.informe_vendedores') }}" class="mb-3">
+        <label for="fecha" class="form-label">Seleccionar Fecha:</label>
+        <input type="date" id="fecha" name="fecha" class="form-control" style="max-width: 250px;"
+               value="{{ fecha }}" required>
+        <button type="submit" class="btn btn-primary mt-2">Generar Informe</button>
+    </form>
+
+    {% if vendedores %}
+        <table class="table table-striped table-bordered">
+            <thead>
+                <tr>
+                    <th>Vendedor</th>
+                    <th>Canastas Prestadas</th>
+                    <th>Canastas Devueltas</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for v in vendedores %}
+                <tr>
+                    <td>{{ v.nombre }}</td>
+                    <td>{{ v.canastas_prestadas }}</td>
+                    <td>{{ v.canastas_devueltas }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p>No se encontraron movimientos para la fecha seleccionada.</p>
+    {% endif %}
+
+    <a href="{{ url_for('movimientos.informe_vendedores', export=True, fecha=fecha) }}"
+       class="btn btn-outline-success mt-3">Exportar Informe a CSV</a>
+</div>
+{% endblock %}

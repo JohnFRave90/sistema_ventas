@@ -1,5 +1,5 @@
-from flask import Blueprint, render_template, redirect, url_for, request, flash
-from flask_login import login_user, logout_user, login_required
+from flask import Blueprint, render_template, redirect, url_for, request, flash, session
+from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import check_password_hash, generate_password_hash
 from app.models.usuario import Usuario
 from app.models.vendedor import Vendedor  # Asegúrate de tener este modelo importado
@@ -7,6 +7,16 @@ from app import db
 from app.routes.utils import UserWrapper
 
 auth_bp = Blueprint("auth", __name__)
+
+def redirigir_dashboard(usuario):
+    if usuario.rol == 'administrador':
+        return redirect(url_for('dashboard.dashboard_admin'))
+    elif usuario.rol == 'semiadmin':
+        return redirect(url_for('dashboard.dashboard_semiadmin'))
+    elif usuario.rol == 'vendedor':
+        return redirect(url_for('dashboard.dashboard_vendedor'))
+    else:
+        return redirect(url_for('dashboard.dashboard'))  # Default
 
 @auth_bp.route("/login", methods=["GET", "POST"])
 def login():
@@ -18,20 +28,23 @@ def login():
             flash("Por favor completa todos los campos.", "danger")
             return render_template("login.html")
 
-        # 1. Buscar en tabla de usuarios
+        # 1. Buscar en tabla de usuarios (administradores y semiadmins)
         usuario = Usuario.query.filter_by(nombre_usuario=username).first()
-        if usuario and check_password_hash(usuario.contraseña, password):
-            login_user(UserWrapper(usuario, "usuario"))
-            return redirect(url_for("dashboard.dashboard"))
+        if usuario and usuario.check_password(password):
+            login_user(usuario)
+            flash('Bienvenido', 'success')
+            return redirigir_dashboard(usuario)
 
-        # 2. Buscar en tabla de vendedores (por código o usuario)
+        # 2. Buscar en tabla de vendedores (por nombre_usuario o código)
         vendedor = Vendedor.query.filter(
             (Vendedor.nombre_usuario == username) |
             (Vendedor.codigo_vendedor == username)
         ).first()
         if vendedor and check_password_hash(vendedor.contraseña, password):
             login_user(UserWrapper(vendedor, "vendedor"))
-            return redirect(url_for("dashboard.dashboard"))
+            # Guardar el código de vendedor en sesión
+            session['codigo_vendedor'] = vendedor.codigo_vendedor
+            return redirect(url_for("dashboard.dashboard_vendedor"))
 
         flash("Usuario o contraseña incorrectos.", "danger")
         return render_template("login.html")
@@ -73,3 +86,44 @@ def register():
         return redirect(url_for("auth.login"))
 
     return render_template("register.html")
+
+# CAMBIAR CONTRASEÑA
+@auth_bp.route('/cambiar_contrasena', methods=['GET', 'POST'])
+@login_required
+def cambiar_contrasena():
+    if request.method == 'POST':
+        actual = request.form.get('actual', '').strip()
+        nueva = request.form.get('nueva', '').strip()
+        confirmar = request.form.get('confirmar', '').strip()
+
+        print(f"DEBUG: Contraseña actual ingresada: '{actual}'")
+        print(f"DEBUG: Contraseña nueva: '{nueva}', Confirmar: '{confirmar}'")
+
+        if nueva != confirmar:
+            flash('Las contraseñas no coinciden', 'danger')
+            return redirect(url_for('auth.cambiar_contrasena'))
+        
+        print(f"DEBUG: current_user: {current_user}")
+        print(f"DEBUG: current_user.id: {current_user.id}")
+        usuario = Usuario.query.get(current_user.id)
+
+        if not usuario:
+            flash('Usuario no encontrado', 'danger')
+            return redirect(url_for('auth.cambiar_contrasena'))
+
+        print(f"DEBUG: Hash almacenado en BD: {usuario.contraseña}")
+        print(f"DEBUG: Resultado check_password: {usuario.check_password(actual)}")
+
+        if not usuario.check_password(actual):
+            flash('La contraseña actual es incorrecta', 'danger')
+            return redirect(url_for('auth.cambiar_contrasena'))
+
+        usuario.set_password(nueva)
+        db.session.commit()
+
+        flash('Contraseña actualizada correctamente', 'success')
+        return redirigir_dashboard(usuario)
+
+    return render_template('auth/cambiar_contrasena.html')
+
+

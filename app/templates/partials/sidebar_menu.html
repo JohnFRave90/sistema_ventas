@@ -79,7 +79,33 @@
     <hr class="my-1">
     <a href="{{ url_for('reportes_liquidaciones.reporte_liquidaciones_form') }}" class="list-group-item list-group-item-action">Reporte Liquidaciones</a>
   </div>
-{% endif %}
+  {% endif %}
+
+  {% if current_user.rol in ['administrador','semiadmin'] %}
+  <!-- Canastas -->
+  <a class="list-group-item list-group-item-action fw-bold" data-bs-toggle="collapse" href="#collapseCanastas">
+      <i class="bi bi-box-seam me-1"></i> Canastas
+  </a>
+  <div class="collapse ps-3" id="collapseCanastas">
+      <a href="{{ url_for('canastas.vista_canastas') }}" class="list-group-item list-group-item-action">Registrar Canasta</a>
+      <a href="{{ url_for('movimientos.registrar_movimiento') }}" class="list-group-item list-group-item-action">Movimientos Canastas</a>
+  </div>
+
+  <!-- Reportes Canastas -->
+  <a class="list-group-item list-group-item-action fw-bold" data-bs-toggle="collapse" href="#collapseReportesCanastas">
+      <i class="bi bi-clipboard-data me-1"></i> Reportes Canastas
+  </a>
+  <div class="collapse ps-3" id="collapseReportesCanastas">
+      <a href="{{ url_for('canastas.informe_canastas') }}" class="list-group-item list-group-item-action">Informe Canastas</a>
+      <a href="{{ url_for('movimientos.informe_movimientos') }}" class="list-group-item list-group-item-action">Informe Movimientos</a>
+      <a href="{{ url_for('movimientos.informe_vendedores') }}" class="list-group-item list-group-item-action">Informe Vendedores</a>
+      <a href="{{ url_for('canastas.informe_buscar_canasta') }}" class="list-group-item list-group-item-action">Buscar Canasta</a>
+      <a href="{{ url_for('movimientos.resumen_canastas_vendedor') }}" class="list-group-item list-group-item-action">Resumen Canastas por Vendedor</a>
+      <a href="{{ url_for('movimientos.informe_canastas_prestadas_por_vendedor') }}" class="list-group-item list-group-item-action">Informe Canastas Prestadas por Vendedor</a>
+      <a href="{{ url_for('canastas.canastas_perdidas') }}" class="list-group-item list-group-item-action">Canastas Perdidas</a>
+  </div>
+  {% endif %}
+
 
   <!-- Configuración -->
   {% if current_user.rol == 'administrador' %}
@@ -93,5 +119,11 @@
       <a href="{{ url_for('festivos.listar_festivos') }}" class="list-group-item list-group-item-action">Festivos</a>
     </div>
   {% endif %}
+
+  <li class="list-group-item mt-2">
+    <a href="{{ url_for('auth.logout') }}" class="btn btn-incolpan w-100">
+      <i class="bi bi-box-arrow-right me-2"></i> Cerrar sesión
+    </a>
+  </li>
 
 </div>

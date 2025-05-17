@@ -1,9 +1,9 @@
-# app/routes/canastas.py
-from flask import Blueprint, render_template, request, redirect, url_for, flash, session
-from flask_login import login_required, current_user
+from flask import Blueprint, render_template, request, redirect, url_for, flash, session, Response
+from flask_login import login_required
 from app import db
 from app.models.canastas import Canasta, MovimientoCanasta
-from flask import Response
+from app.models.vendedor import Vendedor
+from app.utils.roles import rol_requerido
 import csv
 from io import StringIO
 
@@ -12,21 +12,16 @@ bp_canastas = Blueprint('canastas', __name__, template_folder='../templates')
 # Vista principal de canastas
 @bp_canastas.route('/canastas')
 @login_required
+@rol_requerido('semiadmin', 'administrador')
 def vista_canastas():
-    if current_user.rol not in ['administrador', 'semiadmin']:
-        flash('Acceso restringido a canastas.', 'danger')
-        return redirect(url_for('dashboard.dashboard'))
     canastas = Canasta.query.all()
     return render_template('canastas/vista_principal.html', canastas=canastas)
 
+# Registro de canastas
 @bp_canastas.route('/canastas/registro', methods=['GET', 'POST'])
 @login_required
+@rol_requerido('semiadmin', 'administrador')
 def registrar_canasta():
-    if current_user.rol not in ['administrador', 'semiadmin']:
-        flash('Acceso restringido a este módulo.', 'danger')
-        return redirect(url_for('dashboard.dashboard'))
-
-    # Valores por defecto para cargar en el formulario
     datos_formulario = {
         'codigo_barras': '',
         'tamano': 'Estandar',
@@ -57,32 +52,23 @@ def registrar_canasta():
             db.session.commit()
             flash('Canasta registrada correctamente.', 'success')
 
-        # Mostrar nuevamente el formulario con las últimas opciones seleccionadas
         canastas = Canasta.query.order_by(Canasta.fecha_registro.desc()).all()
         return render_template('canastas/registro.html', canastas=canastas, **datos_formulario)
 
-    # En GET inicial
     canastas = Canasta.query.order_by(Canasta.fecha_registro.desc()).all()
     return render_template('canastas/registro.html', canastas=canastas, **datos_formulario)
 
+# Exportar canastas a CSV
 @bp_canastas.route('/canastas/exportar_csv')
 @login_required
+@rol_requerido('semiadmin', 'administrador')
 def exportar_canastas_csv():
-    if current_user.rol not in ['Administrador', 'Semiadmin']:
-        flash('Acceso restringido a este módulo.', 'danger')
-        return redirect(url_for('main.dashboard'))
-
-    # Consulta todas las canastas
     canastas = Canasta.query.all()
 
-    # Creamos el buffer en memoria
     output = StringIO()
     writer = csv.writer(output)
-
-    # Escribimos la cabecera
     writer.writerow(['Código de Barras', 'Tamaño', 'Color', 'Estado', 'Actualidad', 'Fecha de Registro'])
 
-    # Escribimos cada fila
     for c in canastas:
         writer.writerow([
             c.codigo_barras,
@@ -93,8 +79,166 @@ def exportar_canastas_csv():
             c.fecha_registro.strftime('%Y-%m-%d %H:%M')
         ])
 
-    # Retornamos el CSV como archivo descargable
     output.seek(0)
     return Response(output.getvalue(),
                     mimetype='text/csv',
                     headers={"Content-Disposition": "attachment;filename=canastas_export.csv"})
+
+@bp_canastas.route('/informe_canastas', methods=['GET'])
+@login_required
+@rol_requerido('semiadmin', 'administrador')
+def informe_canastas():
+    try:
+        # Consulta agrupada con SQLAlchemy
+        from sqlalchemy import func, case
+
+        canastas_data = (db.session.query(
+            Canasta.tamaño,
+            Canasta.color,
+            func.sum(case((Canasta.actualidad == 'Disponible', 1), else_=0)).label('disponibles'),
+            func.sum(case((Canasta.actualidad == 'Prestada', 1), else_=0)).label('prestadas'),
+            func.count().label('total')
+        )
+        .group_by(Canasta.tamaño, Canasta.color)
+        .all())
+
+        if not canastas_data:
+            flash('No se encontraron canastas en el informe.', 'warning')
+            return render_template('canastas/informe.html', canastas=[])
+
+        # Si se solicita exportar a CSV
+        if 'export' in request.args:
+            output = StringIO()
+            writer = csv.writer(output)
+            writer.writerow(['Tamaño', 'Color', 'Disponibles', 'Prestadas', 'Total'])
+
+            for row in canastas_data:
+                writer.writerow([row.tamaño, row.color, row.disponibles, row.prestadas, row.total])
+
+            output.seek(0)
+            return Response(output.getvalue(),
+                            mimetype='text/csv',
+                            headers={"Content-Disposition": "attachment;filename=informe_canastas.csv"})
+
+        # Render informe en HTML
+        return render_template('canastas/informe.html', canastas=canastas_data)
+
+    except Exception as e:
+        flash(f'Ocurrió un error al generar el informe: {e}', 'danger')
+        return render_template('canastas/informe.html', canastas=[])
+
+@bp_canastas.route('/informe/buscar_canasta', methods=['GET', 'POST'])
+@login_required
+@rol_requerido('semiadmin', 'administrador')
+def informe_buscar_canasta():
+    canasta = None
+    movimientos = []
+
+    if request.method == 'POST':
+        codigo_barras = request.form.get('codigo_barras', '').strip()
+
+        if not codigo_barras:
+            flash('Por favor ingrese un código de barras', 'warning')
+            return render_template('canastas/informe_buscar.html', canasta=None, movimientos=[])
+
+        # Consultar detalles de la canasta
+        canasta = Canasta.query.filter_by(codigo_barras=codigo_barras).first()
+
+        if not canasta:
+            flash('Canasta no encontrada', 'danger')
+            return render_template('canastas/informe_buscar.html', canasta=None, movimientos=[])
+
+        # Consultar últimos 30 movimientos de esa canasta
+        movimientos = (db.session.query(MovimientoCanasta, Vendedor)
+            .join(Vendedor, MovimientoCanasta.codigo_vendedor == Vendedor.codigo_vendedor)
+            .filter(MovimientoCanasta.codigo_barras == codigo_barras)
+            .order_by(MovimientoCanasta.fecha_movimiento.desc())
+            .limit(30)
+            .all())
+
+    return render_template('canastas/informe_buscar.html', canasta=canasta, movimientos=movimientos)
+
+@bp_canastas.route('/canastas/<codigo_barras>/exportar_csv', methods=['GET'])
+@login_required
+@rol_requerido('semiadmin', 'administrador')
+def exportar_csv_canasta(codigo_barras):
+    canasta = Canasta.query.filter_by(codigo_barras=codigo_barras).first()
+    if not canasta:
+        flash('Canasta no encontrada', 'danger')
+        return redirect(url_for('canastas.informe_buscar_canasta'))
+
+    movimientos = (db.session.query(MovimientoCanasta, Vendedor)
+                   .join(Vendedor, MovimientoCanasta.codigo_vendedor == Vendedor.codigo_vendedor)
+                   .filter(MovimientoCanasta.codigo_barras == codigo_barras)
+                   .order_by(MovimientoCanasta.fecha_movimiento.desc())
+                   .all())
+
+    from io import StringIO
+    import csv
+
+    output = StringIO()
+    writer = csv.writer(output)
+
+    writer.writerow(['Tamaño', 'Color'])
+    writer.writerow([canasta.tamaño, canasta.color])
+
+    writer.writerow([])  # Línea en blanco
+    writer.writerow(['Fecha', 'Vendedor', 'Tipo de Movimiento'])
+
+    for mov, vendedor in movimientos:
+        writer.writerow([
+            mov.fecha_movimiento.strftime('%Y-%m-%d %H:%M'),
+            vendedor.nombre,
+            mov.tipo_movimiento
+        ])
+
+    output.seek(0)
+    return Response(output.getvalue(),
+                    mimetype='text/csv',
+                    headers={"Content-Disposition": f"attachment;filename=canasta_{codigo_barras}.csv"})
+
+@bp_canastas.route('/canastas_perdidas', methods=['GET'])
+@login_required
+@rol_requerido('semiadmin', 'administrador')
+def canastas_perdidas():
+    from datetime import datetime, timedelta
+    from sqlalchemy import func
+
+    limite_fecha = datetime.now() - timedelta(days=7)
+
+    # Subconsulta: obtener último movimiento "Sale" de cada canasta
+    subq = (db.session.query(
+                MovimientoCanasta.codigo_barras,
+                func.max(MovimientoCanasta.fecha_movimiento).label('fecha')
+            )
+            .filter(MovimientoCanasta.tipo_movimiento == 'Sale')
+            .group_by(MovimientoCanasta.codigo_barras)
+            .subquery())
+
+    # Consulta principal: canastas prestadas hace más de 7 días
+    canastas_data = (db.session.query(
+                        Canasta.codigo_barras,
+                        subq.c.fecha.label('fecha_prestamo'),
+                        Vendedor.nombre.label('nombre_vendedor')
+                    )
+                    .join(subq, Canasta.codigo_barras == subq.c.codigo_barras)
+                    .join(MovimientoCanasta, (MovimientoCanasta.codigo_barras == Canasta.codigo_barras) & (MovimientoCanasta.fecha_movimiento == subq.c.fecha))
+                    .join(Vendedor, MovimientoCanasta.codigo_vendedor == Vendedor.codigo_vendedor)
+                    .filter(Canasta.actualidad == 'Prestada')
+                    .filter(subq.c.fecha <= limite_fecha)
+                    .all())
+
+    # Calcular días prestada en Python
+    canastas = []
+    for c in canastas_data:
+        dias_prestada = (datetime.now() - c.fecha_prestamo).days
+        canastas.append({
+            'codigo_barras': c.codigo_barras,
+            'fecha_prestamo': c.fecha_prestamo.strftime('%Y-%m-%d'),
+            'nombre_vendedor': c.nombre_vendedor,
+            'dias_prestada': dias_prestada
+        })
+
+    return render_template('canastas/canastas_perdidas.html', canastas=canastas)
+
+

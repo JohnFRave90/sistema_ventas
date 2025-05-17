@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+{% block title %}Resumen de Canastas por Vendedor{% endblock %}
+{% block content %}
+<div class="container mt-4">
+    <h2>Canastas Prestadas por un Vendedor</h2>
+
+    <form method="POST" class="mb-4">
+        <label for="vendedor" class="form-label">Seleccionar Vendedor:</label>
+        <select id="vendedor" name="vendedor" class="form-select" style="max-width: 320px;" required>
+            <option value="">Seleccionar Vendedor</option>
+            {% for v in vendedores %}
+            <option value="{{ v.nombre }}" {% if v.nombre == request.form.get('vendedor') %} selected {% endif %}>{{ v.nombre }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-primary mt-2">Buscar Canastas Prestadas</button>
+    </form>
+
+    {% if resumen %}
+    <h4>Resumen de Canastas Prestadas</h4>
+    <table class="table table-bordered table-striped">
+        <thead>
+            <tr>
+                <th>Tamaño</th>
+                <th>Color</th>
+                <th>Cantidad Prestadas</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in resumen %}
+            <tr>
+                <td>{{ item.tamaño }}</td>
+                <td>{{ item.color }}</td>
+                <td>{{ item.cantidad }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+    {% if canastas %}
+    <h4>Detalles de las Canastas Prestadas</h4>
+    <table class="table table-bordered">
+        <thead>
+            <tr>
+                <th>Código de Barras</th>
+                <th>Fecha y Hora</th>
+                <th>Tipo de Canasta</th>
+                <th>Color</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for c in canastas %}
+            <tr>
+                <td>{{ c.codigo_barras }}</td>
+                <td>{{ c.fecha_movimiento.strftime('%Y-%m-%d %H:%M') }}</td>
+                <td>{{ c.tamaño }}</td>
+                <td>{{ c.color }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+</div>
+{% endblock %}

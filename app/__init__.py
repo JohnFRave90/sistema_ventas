@@ -29,24 +29,22 @@ def create_app():
     from app.models.vendedor import Vendedor
     from app.routes.utils import UserWrapper
 
+
     @login_manager.user_loader
     def load_user(user_id):
-        try:
-            tipo, id_real = user_id.split(":")
-            if tipo == "usuario":
-                user = Usuario.query.get(int(id_real))
-            elif tipo == "vendedor":
-                user = Vendedor.query.get(int(id_real))
-            else:
-                return None
-            return UserWrapper(user, tipo) if user else None
-        except Exception:
-            return None
+        if ':' in user_id:
+            tipo, id_real = user_id.split(':')
+            if tipo == 'vendedor':
+                return Vendedor.query.get(int(id_real))
+            elif tipo == 'usuario':
+                return Usuario.query.get(int(id_real))
+        else:
+            return Usuario.query.get(int(user_id))  # Fallback si no tiene prefijo
 
-    @app.route('/uploads/<path:filename>')
-    def descargar_archivo_uploads(filename):
-        uploads_path = os.path.join(current_app.root_path, 'uploads')
-        return send_from_directory(uploads_path, filename)
+        @app.route('/uploads/<path:filename>')
+        def descargar_archivo_uploads(filename):
+            uploads_path = os.path.join(current_app.root_path, 'uploads')
+            return send_from_directory(uploads_path, filename)
 
     # Registrar blueprints
     from app.routes.auth import auth_bp
@@ -65,6 +63,7 @@ def create_app():
     from app.routes.cambios import cambios_bp
     from app.routes.reportes_liquidaciones import reportes_liquidaciones_bp
     from app.routes.canastas import bp_canastas
+    from app.routes.movimientos import bp_movimientos
 
 
     app.register_blueprint(auth_bp)
@@ -83,5 +82,6 @@ def create_app():
     app.register_blueprint(cambios_bp)
     app.register_blueprint(reportes_liquidaciones_bp, url_prefix='/reportes/liquidaciones')
     app.register_blueprint(bp_canastas)
+    app.register_blueprint(bp_movimientos)
 
     return app

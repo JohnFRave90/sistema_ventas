@@ -1,0 +1,82 @@
+{% extends 'base.html' %}
+{% block title %}Registrar Movimiento{% endblock %}
+{% block content %}
+<div class="container mt-4">
+    <h2>Registrar Movimiento de Canasta</h2>
+
+    <h5>Registros exitosos: {{ contador_registros }}</h5>
+
+    <form method="POST" autocomplete="off" class="mb-4">
+        <div class="row">
+            <div class="col-md-4 mb-3">
+                <label for="vendedor" class="form-label">Vendedor:</label>
+                <select id="vendedor" name="vendedor" class="form-select" required>
+                    <option value="">Seleccionar Vendedor</option>
+                    {% for vendedor in vendedores %}
+                        <option value="{{ vendedor.nombre }}" {% if vendedor.nombre == vendedor_seleccionado %} selected {% endif %}>{{ vendedor.nombre }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="col-md-4 mb-3">
+                <label class="form-label">Tipo de Movimiento:</label><br>
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="radio" id="sale" name="tipo" value="Sale" {% if tipo_seleccionado == 'Sale' %} checked {% endif %} required>
+                    <label class="form-check-label" for="sale">Sale (Prestada)</label>
+                </div>
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="radio" id="entra" name="tipo" value="Entra" {% if tipo_seleccionado == 'Entra' %} checked {% endif %} required>
+                    <label class="form-check-label" for="entra">Entra (Devuelta)</label>
+                </div>
+            </div>
+
+            <div class="col-md-4 mb-3">
+                <label for="codigo_barras" class="form-label">Código de Barras:</label>
+                <input type="text" id="codigo_barras" name="codigo_barras" value="{{ codigo_barras }}" class="form-control form-control-lg" required>
+            </div>
+
+            <div class="col-md-2 d-flex align-items-end mb-3">
+                <button type="submit" class="btn btn-success w-100 btn-lg">Registrar</button>
+            </div>
+        </div>
+    </form>
+
+    <h4 class="mt-5">Últimos Movimientos</h4>
+    <table class="table table-bordered table-striped">
+        <thead>
+            <tr>
+                <th>Fecha</th>
+                <th>Vendedor</th>
+                <th>Tipo</th>
+                <th>Código de Barras</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for mov, vendedor in movimientos %}
+            <tr>
+                <td>{{ mov.fecha_movimiento.strftime('%Y-%m-%d %H:%M') }}</td>
+                <td>{{ vendedor.nombre }}</td>
+                <td>{{ mov.tipo_movimiento }}</td>
+                <td>{{ mov.codigo_barras }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<script>
+    window.onload = function() {
+        const codigoInput = document.getElementById("codigo_barras");
+        codigoInput.focus();
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% for category, message in messages %}
+                {% if category == 'success' %}
+                    codigoInput.value = "";
+                    codigoInput.focus();
+                {% endif %}
+            {% endfor %}
+        {% endwith %}
+    }
+</script>
+{% endblock %}

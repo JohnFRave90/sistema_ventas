@@ -1,0 +1,99 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard Administrador{% endblock %}
+{% block content %}
+
+<h3 class="text-center mb-4">Dashboard de Administrador</h3>
+
+<div class="row text-center mb-5">
+  <div class="col-md-4 mb-3">
+    <div class="card shadow-sm border-0 bg-light">
+      <div class="card-body">
+        <i class="bi bi-bar-chart-fill fs-3 text-primary"></i>
+        <h6 class="mt-2">Pedidos Acumulados del Mes</h6>
+        <h5>${{ "{:,.0f}".format(total_mes) }}</h5>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4 mb-3">
+    <div class="card shadow-sm border-0 bg-light">
+      <div class="card-body">
+        <i class="bi bi-calendar-day fs-3 text-success"></i>
+        <h6 class="mt-2">Pedidos del Día</h6>
+        <h5>${{ "{:,.0f}".format(total_dia) }}</h5>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4 mb-3">
+    <div class="card shadow-sm border-0 bg-light">
+      <div class="card-body">
+        <i class="bi bi-exclamation-triangle-fill fs-3 text-danger"></i>
+        <h6 class="mt-2">Canastas Perdidas</h6>
+        <h5>{{ canastas_perdidas_count }}</h5>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-md-6 mb-4">
+    <div class="card shadow-sm border-0 h-100">
+      <div class="card-body">
+        <h5 class="card-title">Pedidos del Día por Vendedor</h5>
+        <canvas id="graficoPedidosDia"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6 mb-4">
+    <div class="card shadow-sm border-0 h-100">
+      <div class="card-body">
+        <h5 class="card-title">Pedidos del Mes por Vendedor</h5>
+        <canvas id="graficoPedidosMes"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  const pedidosDiaData = {
+    labels: [{% for v in pedidos_dia_vendedores %}"{{ v.nombre }}",{% endfor %}],
+    datasets: [{
+      label: 'Valor $',
+      data: [{% for v in pedidos_dia_vendedores %}{{ v.valor_total }},{% endfor %}],
+      backgroundColor: 'rgba(54, 162, 235, 0.5)',
+      borderColor: 'rgba(54, 162, 235, 1)',
+      borderWidth: 1
+    }]
+  };
+
+  const pedidosMesData = {
+    labels: [{% for v in pedidos_mes_vendedores %}"{{ v.nombre }}",{% endfor %}],
+    datasets: [{
+      label: 'Valor $',
+      data: [{% for v in pedidos_mes_vendedores %}{{ v.valor_total }},{% endfor %}],
+      backgroundColor: 'rgba(255, 206, 86, 0.5)',
+      borderColor: 'rgba(255, 206, 86, 1)',
+      borderWidth: 1
+    }]
+  };
+
+  new Chart(document.getElementById('graficoPedidosDia'), {
+    type: 'bar',
+    data: pedidosDiaData,
+    options: {
+      responsive: true,
+      scales: { y: { beginAtZero: true } }
+    }
+  });
+
+  new Chart(document.getElementById('graficoPedidosMes'), {
+    type: 'bar',
+    data: pedidosMesData,
+    options: {
+      responsive: true,
+      scales: { y: { beginAtZero: true } }
+    }
+  });
+</script>
+
+{% endblock %}

@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+{% block title %}Informe de Canastas{% endblock %}
+{% block content %}
+<div class="container mt-4">
+    <h2>Informe de Canastas</h2>
+
+    <a href="{{ url_for('canastas.informe_canastas', export=True) }}" class="btn btn-outline-success mb-3">
+        Exportar Informe a CSV
+    </a>
+
+    <table class="table table-striped table-bordered">
+        <thead>
+            <tr>
+                <th>Tamaño</th>
+                <th>Color</th>
+                <th>Disponibles</th>
+                <th>Prestadas</th>
+                <th>Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for canasta in canastas %}
+            <tr>
+                <td>{{ canasta.tamaño }}</td>
+                <td>{{ canasta.color }}</td>
+                <td>{{ canasta.disponibles }}</td>
+                <td>{{ canasta.prestadas }}</td>
+                <td>{{ canasta.total }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

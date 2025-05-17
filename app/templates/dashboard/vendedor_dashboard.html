@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+{% block title %}Mi Panel{% endblock %}
+{% block content %}
+
+<h3 class="text-center mb-4">Mi Panel</h3>
+
+<div class="row justify-content-center mb-4">
+  <div class="col-md-4 mb-3">
+    <div class="card shadow-sm border-0 bg-light text-center">
+      <div class="card-body">
+        <i class="bi bi-cart-check fs-3 text-primary"></i>
+        <h6 class="mt-2">Venta Acumulada del Mes</h6>
+        <h5>${{ "{:,.0f}".format(venta_mes) }}</h5>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4 mb-3">
+    <div class="card shadow-sm border-0 bg-light text-center">
+      <div class="card-body">
+        <i class="bi bi-cash-coin fs-3 text-success"></i>
+        <h6 class="mt-2">Comisión del Mes</h6>
+        <h5>${{ "{:,.0f}".format(comision_mes) }}</h5>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4 mb-3">
+    <div class="card shadow-sm border-0 bg-light text-center">
+      <div class="card-body">
+        <i class="bi bi-exclamation-triangle-fill fs-3 text-danger"></i>
+        <h6 class="mt-2">Canastas Perdidas</h6>
+        <h5>{{ canastas_perdidas_count }}</h5>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row justify-content-center">
+  <div class="col-md-3 mb-3">
+    <a href="{{ url_for('pedidos.crear_pedido') }}" class="btn btn-success btn-lg w-100 py-3">
+      <i class="bi bi-box-seam me-2"></i> Pedido
+    </a>
+  </div>
+  <div class="col-md-3 mb-3">
+    <a href="{{ url_for('extras.crear_extra') }}" class="btn btn-success btn-lg w-100 py-3">
+      <i class="bi bi-plus-circle me-2"></i> Extra
+    </a>
+  </div>
+  <div class="col-md-3 mb-3">
+    <a href="{{ url_for('devoluciones.crear_devolucion') }}" class="btn btn-success btn-lg w-100 py-3">
+      <i class="bi bi-arrow-counterclockwise me-2"></i> Devolución
+    </a>
+  </div>
+</div>
+
+{% endblock %}
