@@ -1,0 +1,89 @@
+{# templates/reportes/mi_panel.html #}
+{% extends "base.html" %}
+{% block title %}Mi Proyección del Mes{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-2 py-3">
+  <h4 class="text-center mb-4">📈 Mi Resumen de Ventas</h4>
+
+  <!-- Formulario de selección de mes y año -->
+  <form method="get" class="row row-cols-auto justify-content-center g-2 mb-4">
+    <div class="col">
+      <label for="mes" class="form-label">Mes</label>
+      <select id="mes" name="mes" class="form-select">
+        {% for i in range(1, 13) %}
+          <option value="{{ i }}" {% if i == mes %}selected{% endif %}>
+            {{ "%02d"|format(i) }}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col">
+      <label for="anio" class="form-label">Año</label>
+      <input type="number" name="anio" id="anio" class="form-control" value="{{ anio }}" min="2020" max="2100">
+    </div>
+    <div class="col d-flex align-items-end">
+      <button type="submit" class="btn btn-primary">Seleccionar</button>
+    </div>
+  </form>
+
+  <!-- Tarjetas de resumen -->
+  <div class="row row-cols-1 row-cols-md-2 row-cols-lg-2 g-4 justify-content-center">
+
+    <div class="col">
+      <div class="card shadow-sm border-start border-success border-4">
+        <div class="card-body">
+          <h6 class="card-title text-muted">Total Vendido</h6>
+          <h3 class="card-text text-success">${{ "{:,.0f}".format(vendido) }}</h3>
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="card shadow-sm border-start border-primary border-4">
+        <div class="card-body">
+          <h6 class="card-title text-muted">Comisión Ganada</h6>
+          <h3 class="card-text text-primary">${{ "{:,.0f}".format(comision) }}</h3>
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="card shadow-sm border-start border-warning border-4">
+        <div class="card-body">
+          <h6 class="card-title text-muted">Proyección del Mes</h6>
+          <h3 class="card-text text-warning">${{ "{:,.0f}".format(proyeccion) }}</h3>
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="card shadow-sm border-start border-dark border-4">
+        <div class="card-body">
+          <h6 class="card-title text-muted">Días Hábiles</h6>
+          <h5 class="card-text">{{ dias_transcurridos }} / {{ total_habiles }}</h5>
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="card shadow-sm border-start border-info border-4">
+        <div class="card-body">
+          <h6 class="card-title text-muted">Total Pedidos y extras</h6>
+          <h3 class="card-text text-info">${{ "{:,.0f}".format(total_pedidos) }}</h3>
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="card shadow-sm border-start border-secondary border-4">
+        <div class="card-body">
+          <h6 class="card-title text-muted">Total Cambios</h6>
+          <h3 class="card-text text-secondary">${{ "{:,.0f}".format(total_cambios) }}</h3>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

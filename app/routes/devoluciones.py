@@ -33,13 +33,9 @@ def crear_devolucion():
 
     # 4) Determinar código de vendedor
     if current_user.rol in ['administrador', 'semiadmin']:
-        # lo elegirán del <select>
         selected_v = None
     else:
-        # desenrollamos el proxy para acceder al modelo Vendedor asociado
-        user_obj     = current_user._get_current_object()
-        vend_obj     = user_obj.user
-        selected_v   = vend_obj.codigo_vendedor
+        selected_v = current_user.codigo_vendedor  # ← corregido aquí
 
     comentarios   = ''
     items         = [{'codigo':'', 'cantidad':1}]
@@ -49,7 +45,6 @@ def crear_devolucion():
         # --- Leer y parsear fecha ---
         fecha_val = request.form.get('fecha') or hoy_iso
         try:
-            # ahora usamos datetime.strptime directamente
             fecha_obj = datetime.strptime(fecha_val, '%Y-%m-%d').date()
         except ValueError:
             fecha_obj = date.today()
@@ -121,13 +116,15 @@ def listar_devoluciones():
 
     q = BDDevolucion.query
     if current_user.rol == 'vendedor':
-        q = q.filter_by(codigo_vendedor=current_user.user.codigo_vendedor)
+        q = q.filter_by(codigo_vendedor=current_user.codigo_vendedor)  # ← corregido aquí
+
     if filtro_fecha:
         try:
-            d = datetime.datetime.strptime(filtro_fecha, '%Y-%m-%d').date()
+            d = datetime.strptime(filtro_fecha,'%Y-%m-%d').date()
             q = q.filter(BDDevolucion.fecha == d)
         except ValueError:
             flash("Formato de fecha inválido.","warning")
+
     if filtro_consecutivo:
         q = q.filter(BDDevolucion.consecutivo.ilike(f"%{filtro_consecutivo}%"))
 

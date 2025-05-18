@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Pedidos por producto{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-2 py-3">
+  <h4 class="mb-4">Exportar devoluciones por producto</h4>
+  <form method="get"
+        action="{{ url_for('reportes.export_devoluciones_productos_excel') }}"
+        class="row gx-2 gy-3 align-items-end">
+
+    <div class="col-sm-3">
+      <label class="form-label">Fecha desde</label>
+      <input type="date" name="start" class="form-control" required>
+    </div>
+    <div class="col-sm-3">
+      <label class="form-label">Fecha hasta</label>
+      <input type="date" name="end" class="form-control" required>
+    </div>
+    <div class="col-sm-2">
+      <button type="submit" class="btn btn-primary w-100">
+        Exportar Excel
+      </button>
+    </div>
+  </form>
+</div>
+{% endblock %}

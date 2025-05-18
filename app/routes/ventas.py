@@ -206,18 +206,27 @@ def listar_ventas():
     filtro_fecha  = request.args.get('fecha','').strip()
     filtro_cons   = request.args.get('consecutivo','').strip()
     q = BDVenta.query
-    if current_user.rol=='vendedor':
-        q=q.filter_by(codigo_vendedor=current_user.user.codigo_vendedor)
+
+    if current_user.rol == 'vendedor':
+        q = q.filter_by(codigo_vendedor=current_user.codigo_vendedor)  # ✅ corregido aquí
+
     if filtro_fecha:
         try:
-            d=datetime.strptime(filtro_fecha,'%Y-%m-%d').date()
-            q=q.filter(BDVenta.fecha==d)
+            d = datetime.strptime(filtro_fecha, '%Y-%m-%d').date()
+            q = q.filter(BDVenta.fecha == d)
         except:
-            flash('Fecha inválida','warning')
+            flash('Fecha inválida', 'warning')
+
     if filtro_cons:
-        q=q.filter(BDVenta.consecutivo.ilike(f"%{filtro_cons}%"))
-    ventas=q.order_by(BDVenta.fecha.desc()).all()
-    vend_map={v.codigo_vendedor:v.nombre for v in Vendedor.query.all()}
+        q = q.filter(BDVenta.consecutivo.ilike(f"%{filtro_cons}%"))
+
+    ventas = q.order_by(BDVenta.fecha.desc()).all()
+
+    vend_map = {
+        v.codigo_vendedor: v.nombre
+        for v in Vendedor.query.all()
+    }
+
     return render_template(
         'ventas/listar.html',
         ventas=ventas,

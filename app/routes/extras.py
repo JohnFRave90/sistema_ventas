@@ -36,13 +36,9 @@ def crear_extra():
 
     # 4) Determinar código_vendedor
     if current_user.rol in ['administrador', 'semiadmin']:
-        # lo elegirá del form
         selected_vendedor = None
     else:
-        # desenrollamos el proxy y obtenemos el Vendedor asociado
-        user_wrapper = current_user._get_current_object()
-        vend_obj     = user_wrapper.user
-        selected_vendedor = vend_obj.codigo_vendedor
+        selected_vendedor = current_user.codigo_vendedor  # ← corregido aquí
 
     comentarios   = ''
     items         = [{'codigo':'', 'cantidad':1}]
@@ -125,11 +121,11 @@ def listar_extras():
 
     query = BDExtra.query
     if current_user.rol == 'vendedor':
-        query = query.filter_by(codigo_vendedor=current_user.user.codigo_vendedor)
+        query = query.filter_by(codigo_vendedor=current_user.codigo_vendedor)  # ← corregido aquí
 
     if filtro_fecha:
         try:
-            fecha_obj = datetime.datetime.strptime(filtro_fecha, '%Y-%m-%d').date()
+            fecha_obj = datetime.strptime(filtro_fecha, '%Y-%m-%d').date()
             query = query.filter(BDExtra.fecha == fecha_obj)
         except ValueError:
             flash('Formato de fecha inválido.', 'warning')

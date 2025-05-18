@@ -47,11 +47,13 @@
           <a href="{{ url_for('cambios.editar_cambio', id=c.id) }}" class="btn btn-sm btn-outline-warning" title="Editar">
             <i class="bi bi-pencil-fill"></i>
           </a>
+          {% if current_user.rol == 'administrador' %}
           <form method="post" action="{{ url_for('cambios.eliminar_cambio', id=c.id) }}" style="display:inline;" onsubmit="return confirm('¿Seguro desea eliminar este cambio?');">
             <button class="btn btn-sm btn-outline-danger" title="Eliminar">
               <i class="bi bi-trash-fill"></i>
             </button>
           </form>
+          {% endif %}
         </td>
       </tr>
     {% endfor %}

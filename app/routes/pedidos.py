@@ -35,10 +35,7 @@ def crear_pedido():
         # el admin/semiadmin lo elegirá del formulario
         selected_v = None
     else:
-        # el vendedor toma su propio código desde la relación `user`
-        user_obj = current_user._get_current_object()  # este es el Usuario
-        vend_obj = user_obj.user                      # relación a Vendedor
-        selected_v = vend_obj.codigo_vendedor
+        selected_v = current_user.codigo_vendedor  # ← corregido aquí
 
     comentarios = ''
     items_data  = [{'codigo':'','cantidad':1}]
@@ -119,7 +116,7 @@ def listar_pedidos():
 
     q = BDPedido.query
     if current_user.rol == 'vendedor':
-        q = q.filter_by(codigo_vendedor=current_user.user.codigo_vendedor)
+        q = q.filter_by(codigo_vendedor=current_user.codigo_vendedor)  # ← corregido aquí
     if filtro_fecha:
         try:
             d = datetime.strptime(filtro_fecha,'%Y-%m-%d').date()
@@ -146,6 +143,7 @@ def listar_pedidos():
       filtro_fecha=filtro_fecha,
       filtro_consecutivo=filtro_consecutivo
     )
+
 
 @pedidos_bp.route('/editar/<int:pid>', methods=['GET','POST'])
 @login_required

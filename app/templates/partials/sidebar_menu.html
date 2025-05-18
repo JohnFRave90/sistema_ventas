@@ -66,20 +66,27 @@
   </div>
   {% endif %}
 
-  <!-- Reportes -->
-  {% if current_user.rol in ['administrador','semiadmin'] %}
-  <a class="list-group-item list-group-item-action fw-bold" data-bs-toggle="collapse" href="#collapseReportes">
-    <i class="bi bi-graph-up me-1"></i> Reportes
-  </a>
-  <div class="collapse ps-3" id="collapseReportes">
+<!-- Reportes -->
+<a class="list-group-item list-group-item-action fw-bold" data-bs-toggle="collapse" href="#collapseReportes">
+  <i class="bi bi-graph-up me-1"></i> Reportes
+</a>
+
+<div class="collapse ps-3" id="collapseReportes">
+
+  {% if current_user.rol in ['administrador', 'semiadmin'] %}
     <a href="{{ url_for('reportes.panel') }}" class="list-group-item list-group-item-action">Resumen General</a>
     <a href="{{ url_for('reportes.pedidos_por_producto') }}" class="list-group-item list-group-item-action">Pedidos x Producto</a>
+    <a href="{{ url_for('reportes.extras_por_producto') }}" class="list-group-item list-group-item-action">Extras x Producto</a>
+    <a href="{{ url_for('reportes.devoluciones_por_producto') }}" class="list-group-item list-group-item-action">Devoluciones x Producto</a>
     <a href="{{ url_for('reportes.pedidos_dia_por_vendedor') }}" class="list-group-item list-group-item-action">Pedidos Día x Día</a>
     <a href="{{ url_for('reportes.pedidos_mes_por_vendedor') }}" class="list-group-item list-group-item-action">Pedidos Mes x Mes</a>
     <hr class="my-1">
     <a href="{{ url_for('reportes_liquidaciones.reporte_liquidaciones_form') }}" class="list-group-item list-group-item-action">Reporte Liquidaciones</a>
-  </div>
+  {% elif current_user.rol == 'vendedor' %}
+    <a href="{{ url_for('reportes.mi_panel') }}" class="list-group-item list-group-item-action">Mi Panel</a>
   {% endif %}
+
+</div>
 
   {% if current_user.rol in ['administrador','semiadmin'] %}
   <!-- Canastas -->

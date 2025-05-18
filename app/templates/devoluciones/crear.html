@@ -40,7 +40,7 @@
             </select>
           {% else %}
             <input type="hidden" name="vendedor" value="{{ selected_vendedor }}">
-            <input type="text" class="form-control" value="{{ current_user.user.nombre_usuario }}" disabled>
+            <input type="text" class="form-control" value="{{ current_user.nombre_usuario }}" disabled>
           {% endif %}
         </div>
 
