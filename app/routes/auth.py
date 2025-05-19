@@ -5,6 +5,7 @@ from app.models.usuario import Usuario
 from app.models.vendedor import Vendedor  # Asegúrate de tener este modelo importado
 from app import db
 from app.routes.utils import UserWrapper
+from app.routes.utils import rol_requerido
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -61,6 +62,7 @@ def logout():
 
 
 @auth_bp.route("/register", methods=["GET", "POST"])
+@rol_requerido('administrador')
 def register():
     if request.method == "POST":
         username = request.form.get("username")
