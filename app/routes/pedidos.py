@@ -144,7 +144,6 @@ def listar_pedidos():
       filtro_consecutivo=filtro_consecutivo
     )
 
-
 @pedidos_bp.route('/editar/<int:pid>', methods=['GET','POST'])
 @login_required
 @rol_requerido('administrador')

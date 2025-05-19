@@ -4,13 +4,14 @@
 {% block content %}
 <div class="container-fluid px-2 py-3">
   <h4 class="mb-4 text-center">Listado de Extras</h4>
-  {% if current_user.rol in ['administrador','vendedor'] %}  
+
+  {% if current_user.rol in ['administrador','vendedor'] %}
   <div class="d-flex justify-content-end mb-3">
     <a href="{{ url_for('extras.crear_extra') }}" class="btn btn-success">
       <i class="bi bi-plus-square-dotted"></i> Nuevo Extra
     </a>
-    {% endif %}    
   </div>
+  {% endif %}
 
   <!-- Filtros -->
   <form method="get" class="row g-2 mb-3">
@@ -53,8 +54,9 @@
                  title="Exportar PDF">
                 <i class="bi bi-file-earmark-pdf"></i>
               </a>
+
               <!-- Editar y Eliminar solo para roles admin -->
-              {% if current_user.rol in ['administrador'] %}
+              {% if current_user.rol == 'administrador' %}
               <a href="{{ url_for('extras.editar_extra', eid=e.id) }}"
                  class="btn btn-outline-primary btn-sm"
                  title="Editar">
