@@ -1,0 +1,211 @@
+🧩 Propósito General
+Desarrolla una aplicación web robusta y escalable usando Python (Flask) con base de datos MySQL y un frontend responsive (Bootstrap o similar). Esta aplicación gestionará ventas diarias, control de pedidos, extras, devoluciones, comisiones por categoría, proyecciones mensuales, y reportes filtrables por vendedor, todo con seguridad por roles y trazabilidad de datos.
+
+Se reutilizará lo ya desarrollado en la aplicación de control de canastas (estructura base, control por código de barras, roles, frontend adaptado a móviles, flujo de registro y movimientos).
+
+👥 Roles de Usuario
+Administrador
+
+Acceso completo.
+
+CRUD de productos (precio y categoría: panadería o bizcochería).
+
+CRUD de vendedores (incluyendo % comisión por categoría).
+
+Puede modificar pedidos, extras y devoluciones si aún no se han usado.
+
+Visualiza panel resumen, reportes globales y por vendedor.
+
+Exporta informes en PDF/Excel.
+
+Define días hábiles del mes y puede excluir festivos específicos.
+
+Reasignar o anular documentos erróneos.
+
+Semiadministrador (Despachos)
+
+Puede generar ventas.
+
+Visualiza historial de todos los vendedores.
+
+Accede al panel resumen.
+
+Sin permisos de edición ni eliminación de productos o vendedores.
+
+Vendedor
+
+Registra sus pedidos, extras y devoluciones.
+
+Consulta su historial.
+
+Visualiza:
+
+Ventas del mes
+
+Proyección mensual
+
+Comisión acumulada
+
+Canastas prestadas (de la app existente)
+
+Descarga sus reportes en PDF.
+
+🛒 Productos
+Gestionados solo por el Administrador.
+
+Cada producto incluye:
+
+Código
+
+Nombre
+
+Precio
+
+Categoría (panadería o bizcochería)
+
+Estado (activo/inactivo)
+
+📦 Documentos: Pedidos / Extras / Devoluciones
+Ingreso por formularios dinámicos (con múltiples productos).
+
+Cada documento incluye:
+
+Código (con prefijo tipo: PD, EX, DV)
+
+Fecha
+
+Vendedor
+
+Comentarios
+
+Estado (pendiente, usado, anulado)
+
+Productos (en formato JSON o tabla relacional)
+
+Restricciones:
+
+Pedido y extra se usan una sola vez.
+
+Devolución puede usarse máximo dos veces: anterior (suma) y actual (resta).
+
+Toda operación debe coincidir con el mismo vendedor.
+
+🧮 Generación de Venta
+Realizada por Admin o Semiadmin.
+
+Datos requeridos:
+
+Fecha
+
+Vendedor
+
+Código de pedido
+
+Devolución anterior
+
+Extras
+
+Devolución del día
+
+Fórmula:
+
+python
+Copiar
+Editar
+Venta del día = Devolución anterior + Pedido + Extras − Devolución del día
+Por producto:
+
+Categoría
+
+Subtotal
+
+% Comisión según categoría
+
+Comisión total
+
+Total a pagar a panadería
+
+Confirmación:
+
+Marca documentos como usados
+
+Guarda venta en BD_VENTAS, con precios y % comisión aplicados (por trazabilidad)
+
+💰 Comisión por Categoría
+Cada vendedor tiene % individual por categoría (panadería / bizcochería).
+
+Usado para cálculo automático de comisiones por producto.
+
+📈 Proyección de Ventas
+python
+Copiar
+Editar
+Proyección = (Ventas acumuladas / Días hábiles transcurridos) × Total días hábiles del mes
+Admin define días hábiles (con opción para excluir festivos).
+
+Proyección se actualiza automáticamente.
+
+📋 Informes y Paneles
+Panel Admin/Semiadmin:
+
+Tabla resumen por vendedor:
+
+Total vendido
+
+Comisión ganada
+
+Proyección mensual
+
+Filtros por mes, rango o vendedor
+
+Reportes exportables:
+
+Excel (editable)
+
+PDF (media carta, con logo, estilo claro)
+
+Por producto, categoría, vendedor o fecha
+
+🔒 Seguridad y Trazabilidad
+Autenticación por rol
+
+Accesos y vistas restringidas
+
+Tabla de auditoría:
+
+Quién modificó
+
+Qué documento
+
+Qué cambió
+
+Fecha y hora
+
+Las ventas guardan precios y % comisión en ese momento (evita errores por cambios futuros)
+
+📱 Interfaz y Accesibilidad
+Bootstrap o similar
+
+Mobile-first para vendedores
+
+Versión de escritorio para administración
+
+Flujo adaptado para lector de código de barras (ya implementado en canastas)
+
+🔄 Reutilización del Módulo de Canastas
+Integración total del sistema de control de canastas ya construido.
+
+Reporte al final del día por vendedor.
+
+Historial de canastas prestadas/de vueltas.
+
+Escaneo por código de barras automático.
+
+Registro automático de nuevos códigos si son válidos.
+
+🔔 Extras sugeridos (futuros)
+Notificación automática diaria si el vendedor no registra pedido antes de cierta hora.
+
+Firma digital en reportes PDF.
+
+Envío automático de reporte semanal/mensual por correo al vendedor.

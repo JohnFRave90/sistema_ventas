@@ -7,12 +7,14 @@ __pycache__/
 
 # Virtual environments
 venv/
+scripts_ventas/
 .env/
 .envrc
 .env
 .envconfig
 *.envconfig
 .flaskenv
+crear_tablas.py
 
 # Flask instance folder
 instance/
