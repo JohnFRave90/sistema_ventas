@@ -2,6 +2,13 @@
 {% block title %}Registrar Extra{% endblock %}
 
 {% block content %}
+<style>
+  .producto-select.is-invalid {
+    border: 2px solid red;
+    text-decoration: underline;
+  }
+</style>
+
 <div class="container-fluid px-2 py-3">
   <h4 class="mb-4 text-center">Registrar nuevo extra</h4>
   <div class="row justify-content-center">
@@ -11,13 +18,9 @@
         <!-- Fecha -->
         <div class="mb-3">
           <label class="form-label">Fecha</label>
-          <input
-            type="date"
-            name="fecha"
-            value="{{ fecha_val }}"
-            class="form-control {% if error_max_one %}is-invalid{% endif %}"
-            required
-          >
+          <input type="date" name="fecha"
+                 value="{{ fecha_val }}"
+                 class="form-control {% if error_max_one %}is-invalid{% endif %}" required>
           {% if error_max_one %}
             <div class="invalid-feedback">
               Ya existe un extra para este vendedor en la fecha seleccionada.
@@ -32,9 +35,8 @@
             <select name="vendedor" class="form-select" required>
               <option value="">Seleccione vendedor</option>
               {% for v in vendedores %}
-                <option
-                  value="{{ v.codigo_vendedor }}"
-                  {% if v.codigo_vendedor == selected_vendedor %}selected{% endif %}>
+                <option value="{{ v.codigo_vendedor }}"
+                        {% if v.codigo_vendedor == selected_vendedor %}selected{% endif %}>
                   {{ v.nombre }}
                 </option>
               {% endfor %}
@@ -44,7 +46,6 @@
             <input type="text" class="form-control" value="{{ current_user.nombre_usuario }}" disabled>
           {% endif %}
         </div>
-        
 
         <!-- Productos dinámicos -->
         <div class="mb-3">
@@ -55,24 +56,19 @@
                 <div class="col-6">
                   <select name="producto" class="form-select producto-select" required>
                     <option value="">Seleccione...</option>
-                    {% for p in productos|sort(attribute='nombre') %}
-                      <option
-                        value="{{ p.codigo }}"
-                        data-precio="{{ p.precio }}"
-                        {% if p.codigo == item.codigo %}selected{% endif %}
-                      >{{ p.nombre }}</option>
+                    {% for p in productos %}
+                      <option value="{{ p.codigo }}"
+                              data-precio="{{ p.precio }}"
+                              {% if p.codigo == item.codigo %}selected{% endif %}>
+                        {{ p.nombre }}
+                      </option>
                     {% endfor %}
                   </select>
                 </div>
                 <div class="col-3">
-                  <input
-                    type="number"
-                    name="cantidad"
-                    class="form-control cantidad-input"
-                    min="1"
-                    value="{{ item.cantidad }}"
-                    required
-                  >
+                  <input type="number" name="cantidad"
+                         class="form-control cantidad-input"
+                         min="1" value="{{ item.cantidad }}" required>
                 </div>
                 <div class="col-2 text-end">
                   <span class="subtotal-linea"></span>
@@ -84,7 +80,7 @@
             {% endfor %}
           </div>
           <div class="d-grid mt-2">
-            <button type="button" id="add-producto" class="btn btn-secondary btn-sm">
+            <button type="button" id="add-producto" class="btn btn-primary btn-sm">
               Agregar producto
             </button>
           </div>
@@ -111,58 +107,88 @@
 </div>
 
 <script>
-function actualizarFila(row) {
-  const select = row.querySelector('.producto-select');
-  const cantidad = parseInt(row.querySelector('.cantidad-input').value) || 0;
-  const precio = parseFloat(select.options[select.selectedIndex]?.dataset.precio) || 0;
-  const subtotal = precio * cantidad;
-  row.querySelector('.subtotal-linea').textContent =
-    subtotal.toLocaleString('es-CO', { maximumFractionDigits: 0 });
-}
+  const container = document.getElementById('productos-container');
+  const addBtn    = document.getElementById('add-producto');
+  const totalEl   = document.getElementById('total-extra');
 
-function actualizarTotal() {
-  let total = 0;
-  document.querySelectorAll('.producto-row').forEach(row => {
-    const raw = row.querySelector('.subtotal-linea').textContent.replace(/\./g, '') || 0;
-    total += parseInt(raw, 10);
-  });
-  document.getElementById('total-extra').textContent =
-    '$' + total.toLocaleString('es-CO', { maximumFractionDigits: 0 });
-}
+  function updateRow(row) {
+    const opt    = row.querySelector('.producto-select').selectedOptions[0];
+    const precio = parseFloat(opt?.dataset.precio || 0);
+    const qty    = parseInt(row.querySelector('.cantidad-input').value) || 0;
+    const sub    = precio * qty;
+    row.querySelector('.subtotal-linea').textContent =
+      sub ? sub.toLocaleString('es-CO', { maximumFractionDigits: 0 }) : '';
+  }
 
-function bindEvents(row) {
-  row.querySelector('.producto-select').addEventListener('change', () => {
-    actualizarFila(row);
-    actualizarTotal();
-  });
-  row.querySelector('.cantidad-input').addEventListener('input', () => {
-    actualizarFila(row);
-    actualizarTotal();
-  });
-  row.querySelector('.btn-remove').addEventListener('click', () => {
-    if (document.querySelectorAll('.producto-row').length > 1) {
-      row.remove();
-      actualizarTotal();
+  function updateTotal() {
+    let total = 0;
+    container.querySelectorAll('.producto-row').forEach(row => {
+      const txt = row.querySelector('.subtotal-linea').textContent.replace(/\./g, '') || '0';
+      total += parseInt(txt.replace(/[^0-9]/g, ''), 10);
+    });
+    totalEl.textContent = '$' + total.toLocaleString('es-CO', { maximumFractionDigits: 0 });
+  }
+
+  container.addEventListener('click', function(e) {
+    if (e.target.classList.contains('btn-remove')) {
+      const row = e.target.closest('.producto-row');
+      if (row && container.querySelectorAll('.producto-row').length > 1) {
+        row.remove();
+        updateTotal();
+      }
     }
   });
-}
 
-document.addEventListener('DOMContentLoaded', () => {
-  const container = document.getElementById('productos-container');
-  const firstRow  = container.querySelector('.producto-row');
-  bindEvents(firstRow);
+  document.addEventListener('DOMContentLoaded', () => {
+    container.querySelectorAll('.producto-row').forEach(row => {
+      row.querySelector('.producto-select').addEventListener('change', () => {
+        updateRow(row); updateTotal();
+      });
+      row.querySelector('.cantidad-input').addEventListener('input', () => {
+        updateRow(row); updateTotal();
+      });
+      updateRow(row);
+    });
 
-  document.getElementById('add-producto').addEventListener('click', () => {
-    const newRow = firstRow.cloneNode(true);
-    newRow.querySelector('.cantidad-input').value = 1;
-    newRow.querySelector('.subtotal-linea').textContent = '';
-    bindEvents(newRow);
-    container.appendChild(newRow);
+    addBtn.addEventListener('click', () => {
+      const rows = container.querySelectorAll('.producto-row');
+      const newRow = rows[rows.length - 1].cloneNode(true);
+      newRow.querySelector('.producto-select').value = '';
+      newRow.querySelector('.cantidad-input').value = 1;
+      newRow.querySelector('.subtotal-linea').textContent = '';
+      container.appendChild(newRow);
+
+      newRow.querySelector('.producto-select').addEventListener('change', () => {
+        updateRow(newRow); updateTotal();
+      });
+      newRow.querySelector('.cantidad-input').addEventListener('input', () => {
+        updateRow(newRow); updateTotal();
+      });
+    });
+
+    updateTotal();
   });
 
-  // Subtotales iniciales y total
-  document.querySelectorAll('.producto-row').forEach(row => actualizarFila(row));
-  actualizarTotal();
-});
+  document.querySelector('form').addEventListener('submit', function(e) {
+    const selects = container.querySelectorAll('.producto-select');
+    const codigos = [];
+    let duplicado = false;
+
+    selects.forEach(sel => {
+      sel.classList.remove('is-invalid');
+      const cod = sel.value;
+      if (codigos.includes(cod)) {
+        duplicado = true;
+        sel.classList.add('is-invalid');
+      } else {
+        codigos.push(cod);
+      }
+    });
+
+    if (duplicado) {
+      e.preventDefault();
+      alert("Hay productos duplicados. Por favor, corrige antes de continuar.");
+    }
+  });
 </script>
 {% endblock %}

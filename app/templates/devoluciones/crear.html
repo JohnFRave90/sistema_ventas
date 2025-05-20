@@ -2,6 +2,13 @@
 {% block title %}Registrar Devolución{% endblock %}
 
 {% block content %}
+<style>
+  .producto-select.is-invalid {
+    border: 2px solid red;
+    text-decoration: underline;
+  }
+</style>
+
 <div class="container-fluid px-2 py-3">
   <h4 class="mb-4 text-center">Registrar nueva devolución</h4>
   <div class="row justify-content-center">
@@ -11,13 +18,9 @@
         <!-- Fecha -->
         <div class="mb-3">
           <label class="form-label">Fecha</label>
-          <input
-            type="date"
-            name="fecha"
-            value="{{ fecha_val }}"
-            class="form-control {% if error_max_two %}is-invalid{% endif %}"
-            required
-          >
+          <input type="date" name="fecha"
+                 value="{{ fecha_val }}"
+                 class="form-control {% if error_max_two %}is-invalid{% endif %}" required>
           {% if error_max_two %}
             <div class="invalid-feedback">
               Ya tiene las dos devoluciones permitidas para esta fecha.
@@ -33,7 +36,7 @@
               <option value="">Seleccione vendedor</option>
               {% for v in vendedores %}
                 <option value="{{ v.codigo_vendedor }}"
-                  {% if v.codigo_vendedor == selected_vendedor %}selected{% endif %}>
+                        {% if v.codigo_vendedor == selected_vendedor %}selected{% endif %}>
                   {{ v.nombre }}
                 </option>
               {% endfor %}
@@ -53,7 +56,7 @@
                 <div class="col-6">
                   <select name="producto" class="form-select producto-select" required>
                     <option value="">Seleccione...</option>
-                    {% for p in productos|sort(attribute='nombre') %}
+                    {% for p in productos %}
                       <option value="{{ p.codigo }}"
                               data-precio="{{ p.precio }}"
                               {% if p.codigo == item.codigo %}selected{% endif %}>
@@ -63,8 +66,9 @@
                   </select>
                 </div>
                 <div class="col-3">
-                  <input type="number" name="cantidad" class="form-control cantidad-input" min="1"
-                         value="{{ item.cantidad }}" required>
+                  <input type="number" name="cantidad"
+                         class="form-control cantidad-input"
+                         min="1" value="{{ item.cantidad }}" required>
                 </div>
                 <div class="col-2 text-end">
                   <span class="subtotal-linea"></span>
@@ -76,7 +80,7 @@
             {% endfor %}
           </div>
           <div class="d-grid mt-2">
-            <button type="button" id="add-producto" class="btn btn-secondary btn-sm">
+            <button type="button" id="add-producto" class="btn btn-primary btn-sm">
               Agregar producto
             </button>
           </div>
@@ -103,38 +107,19 @@
 </div>
 
 <script>
-  // Elementos base
   const container = document.getElementById('productos-container');
   const addBtn    = document.getElementById('add-producto');
   const totalEl   = document.getElementById('total-devolucion');
 
-  // Función que bindea eventos en una fila dada
-  function bindRowEvents(row) {
-    const select  = row.querySelector('.producto-select');
-    const input   = row.querySelector('.cantidad-input');
-    const remove  = row.querySelector('.btn-remove');
-
-    select.addEventListener('change', () => { updateRow(row); updateTotal(); });
-    input.addEventListener('input', () => { updateRow(row); updateTotal(); });
-    remove.addEventListener('click', () => {
-      if (container.querySelectorAll('.producto-row').length > 1) {
-        row.remove();
-        updateTotal();
-      }
-    });
-  }
-
-  // Actualiza el subtotal de una fila
   function updateRow(row) {
-    const opt     = row.querySelector('.producto-select').selectedOptions[0];
-    const precio  = parseFloat(opt?.dataset.precio || 0);
-    const qty     = parseInt(row.querySelector('.cantidad-input').value) || 0;
-    const sub     = precio * qty;
+    const opt    = row.querySelector('.producto-select').selectedOptions[0];
+    const precio = parseFloat(opt?.dataset.precio || 0);
+    const qty    = parseInt(row.querySelector('.cantidad-input').value) || 0;
+    const sub    = precio * qty;
     row.querySelector('.subtotal-linea').textContent =
-      sub ? '$' + sub.toLocaleString('es-CO', { maximumFractionDigits: 0 }) : '';
+      sub ? sub.toLocaleString('es-CO', { maximumFractionDigits: 0 }) : '';
   }
 
-  // Actualiza el total general
   function updateTotal() {
     let total = 0;
     container.querySelectorAll('.producto-row').forEach(row => {
@@ -144,23 +129,66 @@
     totalEl.textContent = '$' + total.toLocaleString('es-CO', { maximumFractionDigits: 0 });
   }
 
-  // Al cargar la página, bindea la primera fila y calcula total
+  container.addEventListener('click', function(e) {
+    if (e.target.classList.contains('btn-remove')) {
+      const row = e.target.closest('.producto-row');
+      if (row && container.querySelectorAll('.producto-row').length > 1) {
+        row.remove();
+        updateTotal();
+      }
+    }
+  });
+
   document.addEventListener('DOMContentLoaded', () => {
-    container.querySelectorAll('.producto-row').forEach(bindRowEvents);
+    container.querySelectorAll('.producto-row').forEach(row => {
+      row.querySelector('.producto-select').addEventListener('change', () => {
+        updateRow(row); updateTotal();
+      });
+      row.querySelector('.cantidad-input').addEventListener('input', () => {
+        updateRow(row); updateTotal();
+      });
+      updateRow(row);
+    });
+
+    addBtn.addEventListener('click', () => {
+      const rows = container.querySelectorAll('.producto-row');
+      const newRow = rows[rows.length - 1].cloneNode(true);
+      newRow.querySelector('.producto-select').value = '';
+      newRow.querySelector('.cantidad-input').value = 1;
+      newRow.querySelector('.subtotal-linea').textContent = '';
+      container.appendChild(newRow);
+
+      newRow.querySelector('.producto-select').addEventListener('change', () => {
+        updateRow(newRow); updateTotal();
+      });
+      newRow.querySelector('.cantidad-input').addEventListener('input', () => {
+        updateRow(newRow); updateTotal();
+      });
+    });
+
     updateTotal();
   });
 
-  // Al hacer clic en “Agregar producto”, clona la última fila y bindea sus eventos
-  addBtn.addEventListener('click', () => {
-    const rows = container.querySelectorAll('.producto-row');
-    const newRow = rows[rows.length - 1].cloneNode(true);
-    // Resetear valores
-    newRow.querySelector('.producto-select').value = '';
-    newRow.querySelector('.cantidad-input').value  = 1;
-    newRow.querySelector('.subtotal-linea').textContent = '';
-    container.appendChild(newRow);
-    bindRowEvents(newRow);
-    updateTotal();
+  document.querySelector('form').addEventListener('submit', function(e) {
+    const selects = container.querySelectorAll('.producto-select');
+    const codigos = [];
+    let duplicado = false;
+
+    selects.forEach(sel => {
+      sel.classList.remove('is-invalid');
+      const cod = sel.value;
+      if (codigos.includes(cod)) {
+        duplicado = true;
+        sel.classList.add('is-invalid');
+      } else {
+        codigos.push(cod);
+      }
+    });
+
+    if (duplicado) {
+      e.preventDefault();
+      alert("Hay productos duplicados. Por favor, corrige antes de continuar.");
+    }
   });
 </script>
 {% endblock %}

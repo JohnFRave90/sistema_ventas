@@ -109,6 +109,12 @@
       {# ———— Tabla de Previsualización ———— #}
       {# Tabla de previsualización #}
       {% if breakdown %}
+      <style>
+        .negativo {
+          color: red;
+          font-weight: bold;
+        }
+      </style>
       <div class="table-responsive">
         <table class="table table-sm table-bordered small">
           <thead class="table-light">
@@ -128,24 +134,23 @@
               <td>{{ item.extra }}</td>
               <td>{{ item.dev_dia }}</td>
               <td>{{ item.total }}</td>
-              <td class="text-end">{{ "{:,.0f}".format(item.valor) }}</td>
-              <td class="text-end">{{ "{:,.0f}".format(item.comision) }}</td>
-              <td class="text-end">{{ "{:,.0f}".format(item.pagar_pan) }}</td>
+              <td class="text-end {% if item.valor < 0 %}text-danger fw-bold{% endif %}">{{ "{:,.0f}".format(item.valor) }}</td>
+              <td class="text-end {% if item.comision < 0 %}text-danger fw-bold{% endif %}">{{ "{:,.0f}".format(item.comision) }}</td>
+              <td class="text-end {% if item.pagar_pan < 0 %}text-danger fw-bold{% endif %}">{{ "{:,.0f}".format(item.pagar_pan) }}</td>
             </tr>
           {% endfor %}
           </tbody>
           <tfoot class="table-light">
             <tr>
               <th colspan="7" class="text-end">Totales:</th>
-              <th class="text-end">{{ "{:,.0f}".format(total_valor)    }}</th>
+              <th class="text-end">{{ "{:,.0f}".format(total_valor) }}</th>
               <th class="text-end">{{ "{:,.0f}".format(total_comision) }}</th>
-              <th class="text-end">{{ "{:,.0f}".format(total_pagar)    }}</th>
+              <th class="text-end">{{ "{:,.0f}".format(total_pagar) }}</th>
             </tr>
           </tfoot>
         </table>
       </div>
       {% endif %}
-
     </div>
   </div>
 </div>

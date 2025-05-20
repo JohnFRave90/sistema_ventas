@@ -19,8 +19,10 @@ devoluciones_bp = Blueprint('devoluciones', __name__, url_prefix='/devoluciones'
 @login_required
 @rol_requerido('administrador', 'semiadmin', 'vendedor')
 def crear_devolucion():
+    from app.utils.productos import get_productos_ordenados
+
     # 1) Catálogo de productos
-    productos = Producto.query.filter_by(activo=True).all()
+    productos = get_productos_ordenados()
 
     # 2) Lista de vendedores solo para admin/semiadmin
     vendedores = None
@@ -35,7 +37,7 @@ def crear_devolucion():
     if current_user.rol in ['administrador', 'semiadmin']:
         selected_v = None
     else:
-        selected_v = current_user.codigo_vendedor  # ← corregido aquí
+        selected_v = current_user.codigo_vendedor
 
     comentarios   = ''
     items         = [{'codigo':'', 'cantidad':1}]
@@ -72,7 +74,6 @@ def crear_devolucion():
             error_max_two = True
             flash("Ya tiene dos devoluciones para esa fecha.", "warning")
         else:
-            # --- Crear devolución y sus items ---
             dev = BDDevolucion(
                 consecutivo     = generar_consecutivo(BDDevolucion, 'DV'),
                 codigo_vendedor = selected_v,
@@ -106,6 +107,60 @@ def crear_devolucion():
         items             = items,
         error_max_two     = error_max_two,
         hoy_iso           = hoy_iso
+    )
+
+@devoluciones_bp.route('/editar/<int:did>', methods=['GET','POST'])
+@login_required
+@rol_requerido('administrador')
+def editar_devolucion(did):
+    from app.utils.productos import get_productos_ordenados
+
+    dev        = BDDevolucion.query.get_or_404(did)
+    productos  = get_productos_ordenados()
+    vendedores = Vendedor.query.order_by(Vendedor.nombre).all()
+    items = [
+        {
+            'codigo': it.producto_cod,
+            'cantidad': it.cantidad,
+            'subtotal': it.subtotal  
+        }
+        for it in dev.items
+    ]
+
+    if request.method == 'POST':
+        f = request.form.get('fecha')
+        try:
+            dev.fecha = datetime.strptime(f, '%Y-%m-%d').date()
+        except:
+            pass
+        dev.codigo_vendedor = request.form.get('vendedor', dev.codigo_vendedor)
+        dev.comentarios     = request.form.get('comentarios', '').strip()
+
+        dev.items.clear()
+        cods  = request.form.getlist('producto')
+        cants = request.form.getlist('cantidad')
+        for c, q in zip(cods, cants):
+            if c and q:
+                prod = Producto.query.filter_by(codigo=c).first()
+                pu   = prod.precio if prod else 0
+                dev.items.append(
+                    BDDevolucionItem(
+                        producto_cod = c,
+                        cantidad     = int(q),
+                        precio_unit  = pu,
+                        subtotal     = pu * int(q)
+                    )
+                )
+        db.session.commit()
+        flash("Devolución actualizada.", "success")
+        return redirect(url_for('devoluciones.listar_devoluciones'))
+
+    return render_template(
+        'devoluciones/editar.html',
+        devolucion=dev,
+        productos=productos,
+        vendedores=vendedores,
+        items=items
     )
 
 @devoluciones_bp.route('/listar', methods=['GET'])
@@ -143,54 +198,6 @@ def listar_devoluciones():
         vendedores=vendedores_map,
         filtro_fecha=filtro_fecha,
         filtro_consecutivo=filtro_consecutivo
-    )
-
-@devoluciones_bp.route('/editar/<int:did>', methods=['GET','POST'])
-@login_required
-@rol_requerido('administrador')
-def editar_devolucion(did):
-    dev        = BDDevolucion.query.get_or_404(did)
-    productos  = Producto.query.filter_by(activo=True).all()
-    vendedores = Vendedor.query.order_by(Vendedor.nombre).all()
-    items      = [
-        {'codigo':it.producto_cod,'cantidad':it.cantidad}
-        for it in dev.items
-    ]
-
-    if request.method == 'POST':
-        f = request.form.get('fecha')
-        try:
-            dev.fecha = datetime.datetime.strptime(f, '%Y-%m-%d').date()
-        except:
-            pass
-        dev.codigo_vendedor = request.form.get('vendedor', dev.codigo_vendedor)
-        dev.comentarios     = request.form.get('comentarios','').strip()
-
-        dev.items.clear()
-        cods  = request.form.getlist('producto')
-        cants = request.form.getlist('cantidad')
-        for c,q in zip(cods,cants):
-            if c and q:
-                prod = Producto.query.filter_by(codigo=c).first()
-                pu   = prod.precio if prod else 0
-                dev.items.append(
-                    BDDevolucionItem(
-                        producto_cod = c,
-                        cantidad     = int(q),
-                        precio_unit  = pu,
-                        subtotal     = pu * int(q)
-                    )
-                )
-        db.session.commit()
-        flash("Devolución actualizada.","success")
-        return redirect(url_for('devoluciones.listar_devoluciones'))
-
-    return render_template(
-        'devoluciones/editar.html',
-        devolucion=dev,
-        productos=productos,
-        vendedores=vendedores,
-        items=items
     )
 
 @devoluciones_bp.route('/eliminar/<int:did>', methods=['POST'])

@@ -22,8 +22,10 @@ extras_bp = Blueprint('extras', __name__, url_prefix='/extras')
 @login_required
 @rol_requerido('administrador', 'semiadmin', 'vendedor')
 def crear_extra():
+    from app.utils.productos import get_productos_ordenados
+
     # 1) Catálogo de productos
-    productos = Producto.query.filter_by(activo=True).all()
+    productos = get_productos_ordenados()
 
     # 2) Sólo admin/semiadmin ven el dropdown de vendedores
     vendedores = None
@@ -38,27 +40,24 @@ def crear_extra():
     if current_user.rol in ['administrador', 'semiadmin']:
         selected_vendedor = None
     else:
-        selected_vendedor = current_user.codigo_vendedor  # ← corregido aquí
+        selected_vendedor = current_user.codigo_vendedor
 
     comentarios   = ''
-    items         = [{'codigo':'', 'cantidad':1}]
+    items         = [{'codigo': '', 'cantidad': 1}]
     error_max_one = False
 
     if request.method == 'POST':
-        # — Leer fecha —
         fecha_val = request.form.get('fecha') or hoy_iso
         try:
             fecha_obj = datetime.strptime(fecha_val, '%Y-%m-%d').date()
         except ValueError:
             fecha_obj = date.today()
 
-        # — Si es admin/semiadmin, tomamos el vendedor desde el form —
         if current_user.rol in ['administrador', 'semiadmin']:
             selected_vendedor = request.form.get('vendedor') or selected_vendedor
 
-        comentarios = request.form.get('comentarios','').strip()
+        comentarios = request.form.get('comentarios', '').strip()
 
-        # — Construir lista de items —
         codigos    = request.form.getlist('producto')
         cantidades = request.form.getlist('cantidad')
         items = [
@@ -66,7 +65,6 @@ def crear_extra():
             for c, q in zip(codigos, cantidades) if c and q
         ]
 
-        # — Validar un solo extra por día/vendedor —
         existente = BDExtra.query.filter_by(
             codigo_vendedor=selected_vendedor,
             fecha=fecha_obj
@@ -75,26 +73,25 @@ def crear_extra():
             error_max_one = True
             flash("Ya existe un extra para ese vendedor en la fecha indicada.", "warning")
         else:
-            # — Crear y persistir BDExtra y BDExtraItem —
             nuevo = BDExtra(
-                consecutivo     = generar_consecutivo(BDExtra, 'EX'),
-                codigo_vendedor = selected_vendedor,
-                fecha           = fecha_obj,
-                comentarios     = comentarios,
-                usado           = False
+                consecutivo=generar_consecutivo(BDExtra, 'EX'),
+                codigo_vendedor=selected_vendedor,
+                fecha=fecha_obj,
+                comentarios=comentarios,
+                usado=False
             )
             db.session.add(nuevo)
-            db.session.flush()  # Para obtener nuevo.id
+            db.session.flush()
 
             for it in items:
                 prod = Producto.query.filter_by(codigo=it['codigo']).first()
-                pu   = prod.precio if prod else 0
+                pu = prod.precio if prod else 0
                 db.session.add(BDExtraItem(
-                    extra_id     = nuevo.id,
-                    producto_cod = it['codigo'],
-                    cantidad     = it['cantidad'],
-                    precio_unit  = pu,
-                    subtotal     = pu * it['cantidad']
+                    extra_id=nuevo.id,
+                    producto_cod=it['codigo'],
+                    cantidad=it['cantidad'],
+                    precio_unit=pu,
+                    subtotal=pu * it['cantidad']
                 ))
 
             db.session.commit()
@@ -103,14 +100,14 @@ def crear_extra():
 
     return render_template(
         'extras/crear.html',
-        productos         = productos,
-        vendedores        = vendedores,
-        fecha_val         = fecha_val,
-        selected_vendedor = selected_vendedor,
-        comentarios       = comentarios,
-        items             = items,
-        error_max_one     = error_max_one,
-        hoy_iso           = hoy_iso
+        productos=productos,
+        vendedores=vendedores,
+        fecha_val=fecha_val,
+        selected_vendedor=selected_vendedor,
+        comentarios=comentarios,
+        items=items,
+        error_max_one=error_max_one,
+        hoy_iso=hoy_iso
     )
 
 @extras_bp.route('/listar', methods=['GET'])
@@ -150,8 +147,10 @@ def listar_extras():
 @extras_bp.route('/editar/<int:eid>', methods=['GET', 'POST'])
 @rol_requerido('administrador')
 def editar_extra(eid):
+    from app.utils.productos import get_productos_ordenados
+
     extra = BDExtra.query.get_or_404(eid)
-    productos = Producto.query.filter_by(activo=True).order_by(Producto.nombre.asc()).all()
+    productos = get_productos_ordenados()
     vendedores = Vendedor.query.all()
 
     if request.method == 'POST':
@@ -159,7 +158,6 @@ def editar_extra(eid):
         extra.fecha = datetime.strptime(request.form['fecha'], '%Y-%m-%d').date()
         extra.comentarios = request.form['comentarios']
 
-        # Limpiar los items anteriores
         BDExtraItem.query.filter_by(extra_id=extra.id).delete()
 
         codigos = request.form.getlist('producto')
@@ -185,7 +183,6 @@ def editar_extra(eid):
         flash('Extra actualizado correctamente.', 'success')
         return redirect(url_for('extras.listar_extras'))
 
-    # Preparar items para mostrar en el formulario
     items = []
     for i in extra.items:
         producto = Producto.query.filter_by(codigo=i.producto_cod).first()

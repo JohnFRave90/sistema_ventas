@@ -14,12 +14,14 @@ from app.utils.documentos   import generar_consecutivo
 
 pedidos_bp = Blueprint('pedidos', __name__, url_prefix='/pedidos')
 
-@pedidos_bp.route('/crear', methods=['GET','POST'])
+@pedidos_bp.route('/crear', methods=['GET', 'POST'])
 @login_required
-@rol_requerido('vendedor','administrador')
+@rol_requerido('vendedor', 'administrador')
 def crear_pedido():
-    # 1) Catálogo de productos
-    productos = Producto.query.filter_by(activo=True).all()
+    from app.utils.productos import get_productos_ordenados
+
+    # 1) Catálogo de productos (orden personalizado)
+    productos = get_productos_ordenados()
 
     # 2) Sólo admin/semiadmin ven el select de vendedores
     vendedores = None
@@ -27,7 +29,7 @@ def crear_pedido():
         vendedores = Vendedor.query.order_by(Vendedor.nombre).all()
 
     # 3) Fecha inicial
-    hoy_iso   = date.today().isoformat()
+    hoy_iso = date.today().isoformat()
     fecha_val = hoy_iso
 
     # 4) Determinar el código de vendedor
@@ -35,11 +37,11 @@ def crear_pedido():
         # el admin/semiadmin lo elegirá del formulario
         selected_v = None
     else:
-        selected_v = current_user.codigo_vendedor  # ← corregido aquí
+        selected_v = current_user.codigo_vendedor
 
     comentarios = ''
-    items_data  = [{'codigo':'','cantidad':1}]
-    error_dup   = False
+    items_data = [{'codigo': '', 'cantidad': 1}]
+    error_dup = False
 
     if request.method == 'POST':
         # — Leer fecha —
@@ -53,14 +55,14 @@ def crear_pedido():
         if current_user.rol in ['administrador', 'semiadmin']:
             selected_v = request.form.get('vendedor') or selected_v
 
-        comentarios = request.form.get('comentarios','').strip()
+        comentarios = request.form.get('comentarios', '').strip()
 
         # — Items dinámicos —
-        cods  = request.form.getlist('producto')
+        cods = request.form.getlist('producto')
         cants = request.form.getlist('cantidad')
         items_data = [
             {'codigo': c, 'cantidad': int(q)}
-            for c,q in zip(cods, cants) if c and q
+            for c, q in zip(cods, cants) if c and q
         ]
 
         # — Validación: 1 pedido/día/vendedor —
@@ -73,21 +75,21 @@ def crear_pedido():
         else:
             # — Crear pedido y sus items —
             pedido = BDPedido(
-                consecutivo     = generar_consecutivo(BDPedido, 'PD'),
-                codigo_vendedor = selected_v,
-                fecha           = fecha_obj,
-                comentarios     = comentarios,
-                usado           = False
+                consecutivo=generar_consecutivo(BDPedido, 'PD'),
+                codigo_vendedor=selected_v,
+                fecha=fecha_obj,
+                comentarios=comentarios,
+                usado=False
             )
             for it in items_data:
                 prod = Producto.query.filter_by(codigo=it['codigo']).first()
-                pu   = prod.precio if prod else 0
+                pu = prod.precio if prod else 0
                 pedido.items.append(
                     BDPedidoItem(
-                        producto_cod = it['codigo'],
-                        cantidad     = it['cantidad'],
-                        precio_unit  = pu,
-                        subtotal     = pu * it['cantidad']
+                        producto_cod=it['codigo'],
+                        cantidad=it['cantidad'],
+                        precio_unit=pu,
+                        subtotal=pu * it['cantidad']
                     )
                 )
             db.session.add(pedido)
@@ -98,14 +100,14 @@ def crear_pedido():
     # 5) Renderizar formulario (GET o POST con errores)
     return render_template(
         'pedidos/crear.html',
-        productos         = productos,
-        vendedores        = vendedores,
-        fecha_val         = fecha_val,
-        selected_vendedor = selected_v,
-        comentarios       = comentarios,
-        items             = items_data,
-        error_dup         = error_dup,
-        hoy_iso           = hoy_iso
+        productos=productos,
+        vendedores=vendedores,
+        fecha_val=fecha_val,
+        selected_vendedor=selected_v,
+        comentarios=comentarios,
+        items=items_data,
+        error_dup=error_dup,
+        hoy_iso=hoy_iso
     )
 
 @pedidos_bp.route('/listar', methods=['GET'])
@@ -148,40 +150,45 @@ def listar_pedidos():
 @login_required
 @rol_requerido('administrador')
 def editar_pedido(pid):
+    from app.utils.productos import get_productos_ordenados
+
     pedido     = BDPedido.query.get_or_404(pid)
-    productos  = Producto.query.filter_by(activo=True).all()
+    productos  = get_productos_ordenados()
     vendedores = Vendedor.query.order_by(Vendedor.nombre).all()
-    items_data = [{'codigo':it.producto_cod,'cantidad':it.cantidad}
+    items_data = [{'codigo': it.producto_cod, 'cantidad': it.cantidad}
                   for it in pedido.items]
 
-    if request.method=='POST':
+    if request.method == 'POST':
         # actualizo campos
         f = request.form.get('fecha')
         try:
-            pedido.fecha = datetime.strptime(f,'%Y-%m-%d').date()
+            pedido.fecha = datetime.strptime(f, '%Y-%m-%d').date()
         except:
             pass
-        pedido.codigo_vendedor = request.form.get('vendedor',pedido.codigo_vendedor)
-        pedido.comentarios     = request.form.get('comentarios','').strip()
+
+        pedido.codigo_vendedor = request.form.get('vendedor', pedido.codigo_vendedor)
+        pedido.comentarios     = request.form.get('comentarios', '').strip()
 
         # reconstruyo items
         pedido.items.clear()
         cods  = request.form.getlist('producto')
         cants = request.form.getlist('cantidad')
-        for c,q in zip(cods,cants):
+
+        for c, q in zip(cods, cants):
             if c and q:
                 prod = Producto.query.filter_by(codigo=c).first()
                 pu   = prod.precio if prod else 0
                 pedido.items.append(
-                  BDPedidoItem(
-                    producto_cod = c,
-                    cantidad     = int(q),
-                    precio_unit  = pu,
-                    subtotal     = pu*int(q)
-                  )
+                    BDPedidoItem(
+                        producto_cod = c,
+                        cantidad     = int(q),
+                        precio_unit  = pu,
+                        subtotal     = pu * int(q)
+                    )
                 )
+
         db.session.commit()
-        flash("Pedido actualizado.","success")
+        flash("Pedido actualizado.", "success")
         return redirect(url_for('pedidos.listar_pedidos'))
 
     return render_template(

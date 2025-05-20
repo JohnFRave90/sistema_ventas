@@ -2,6 +2,13 @@
 {% block title %}Registrar Pedido{% endblock %}
 
 {% block content %}
+<style>
+  .producto-select.is-invalid {
+    border: 2px solid red;
+    text-decoration: underline;
+  }
+</style>
+
 <div class="container-fluid px-2 py-3">
   <h4 class="text-center mb-4">Registrar nuevo pedido</h4>
   <div class="row justify-content-center">
@@ -11,11 +18,9 @@
         <!-- Fecha -->
         <div class="mb-3">
           <label class="form-label">Fecha</label>
-          <input type="date"
-                 name="fecha"
+          <input type="date" name="fecha"
                  class="form-control {% if error_dup %}is-invalid{% endif %}"
-                 value="{{ fecha_val }}"
-                 required>
+                 value="{{ fecha_val }}" required>
           <div class="invalid-feedback">
             Ya existe un pedido para esa fecha y vendedor.
           </div>
@@ -29,7 +34,7 @@
               <option value="">Seleccione...</option>
               {% for v in vendedores %}
               <option value="{{ v.codigo_vendedor }}"
-                      {% if v.codigo_vendedor==selected_vendedor %}selected{% endif %}>
+                      {% if v.codigo_vendedor == selected_vendedor %}selected{% endif %}>
                 {{ v.nombre }}
               </option>
               {% endfor %}
@@ -46,37 +51,35 @@
           <label class="form-label">Productos</label>
           <div id="productos-container">
             {% for it in items %}
-            <div class="row g-2 mb-2 producto-row align-items-center">
-              <div class="col-6">
-                <select name="producto" class="form-select producto-select" required>
-                  <option value="">Seleccione...</option>
-                  {% for p in productos|sort(attribute='nombre') %}
-                  <option value="{{ p.codigo }}"
-                          data-precio="{{ p.precio }}"
-                          {% if p.codigo==it.codigo %}selected{% endif %}>
-                    {{ p.nombre }}
-                  </option>
-                  {% endfor %}
-                </select>
+              <div class="row g-2 mb-2 producto-row align-items-center">
+                <div class="col-6">
+                  <select name="producto" class="form-select producto-select" required>
+                    <option value="">Seleccione...</option>
+                    {% for p in productos %}
+                      <option value="{{ p.codigo }}"
+                              data-precio="{{ p.precio }}"
+                              {% if p.codigo == it.codigo %}selected{% endif %}>
+                        {{ p.nombre }}
+                      </option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="col-3">
+                  <input type="number" name="cantidad"
+                         class="form-control cantidad-input"
+                         min="1" value="{{ it.cantidad }}" required>
+                </div>
+                <div class="col-2 text-end">
+                  <span class="subtotal-linea"></span>
+                </div>
+                <div class="col-1 text-end">
+                  <button type="button" class="btn btn-outline-danger btn-remove p-1">×</button>
+                </div>
               </div>
-              <div class="col-3">
-                <input type="number" name="cantidad"
-                       class="form-control cantidad-input"
-                       min="1"
-                       value="{{ it.cantidad }}"
-                       required>
-              </div>
-              <div class="col-2 text-end">
-                <span class="subtotal-linea"></span>
-              </div>
-              <div class="col-1 text-end">
-                <button type="button" class="btn btn-outline-danger btn-remove p-1">×</button>
-              </div>
-            </div>
             {% endfor %}
           </div>
           <div class="d-grid mt-2">
-            <button type="button" id="add-producto" class="btn btn-secondary btn-sm">
+            <button type="button" id="add-producto" class="btn btn-primary btn-sm">
               Agregar producto
             </button>
           </div>
@@ -93,8 +96,9 @@
           <textarea name="comentarios" class="form-control" rows="3">{{ comentarios }}</textarea>
         </div>
 
+        <!-- Botón -->
         <div class="d-grid">
-          <button class="btn btn-incolpan">Registrar Pedido</button>
+          <button type="submit" class="btn btn-incolpan">Registrar Pedido</button>
         </div>
       </form>
     </div>
@@ -102,46 +106,88 @@
 </div>
 
 <script>
-  function actualizarFila(r) {
-    const sel = r.querySelector('.producto-select');
-    const qty = +r.querySelector('.cantidad-input').value || 0;
-    const price = +sel.selectedOptions[0]?.dataset.precio || 0;
-    r.querySelector('.subtotal-linea').textContent =
-      price*qty
-      ? (price*qty).toLocaleString('es-CO',{maximumFractionDigits:0})
-      : '';
+  const container = document.getElementById('productos-container');
+  const addBtn    = document.getElementById('add-producto');
+  const totalEl   = document.getElementById('total-pedido');
+
+  function updateRow(row) {
+    const opt    = row.querySelector('.producto-select').selectedOptions[0];
+    const precio = parseFloat(opt?.dataset.precio || 0);
+    const qty    = parseInt(row.querySelector('.cantidad-input').value) || 0;
+    const sub    = precio * qty;
+    row.querySelector('.subtotal-linea').textContent =
+      sub ? sub.toLocaleString('es-CO', { maximumFractionDigits: 0 }) : '';
   }
-  function actualizarTotal() {
-    let sum=0;
-    document.querySelectorAll('.producto-row').forEach(r=>{
-      const txt = r.querySelector('.subtotal-linea').textContent.replace(/\./g,'');
-      sum += +txt||0;
+
+  function updateTotal() {
+    let total = 0;
+    container.querySelectorAll('.producto-row').forEach(row => {
+      const txt = row.querySelector('.subtotal-linea').textContent.replace(/\./g, '') || '0';
+      total += parseInt(txt.replace(/[^0-9]/g, ''), 10);
     });
-    document.getElementById('total-pedido').textContent =
-      '$'+sum.toLocaleString('es-CO',{maximumFractionDigits:0});
+    totalEl.textContent = '$' + total.toLocaleString('es-CO', { maximumFractionDigits: 0 });
   }
-  function bindEvents(r){
-    r.querySelector('.producto-select').onchange = ()=>{ actualizarFila(r); actualizarTotal(); };
-    r.querySelector('.cantidad-input').oninput = ()=>{ actualizarFila(r); actualizarTotal(); };
-    r.querySelector('.btn-remove').onclick = ()=>{
-      if(document.querySelectorAll('.producto-row').length>1){
-        r.remove(); actualizarTotal();
+
+  container.addEventListener('click', function(e) {
+    if (e.target.classList.contains('btn-remove')) {
+      const row = e.target.closest('.producto-row');
+      if (row && container.querySelectorAll('.producto-row').length > 1) {
+        row.remove();
+        updateTotal();
       }
-    };
-  }
-  document.addEventListener('DOMContentLoaded', ()=>{
-    const ctr   = document.getElementById('productos-container');
-    const first = ctr.querySelector('.producto-row');
-    bindEvents(first);
-    document.getElementById('add-producto').onclick = ()=>{
-      const clone = first.cloneNode(true);
-      clone.querySelector('.cantidad-input').value = 1;
-      clone.querySelector('.subtotal-linea').textContent = '';
-      bindEvents(clone);
-      ctr.appendChild(clone);
-    };
-    document.querySelectorAll('.producto-row').forEach(r=>actualizarFila(r));
-    actualizarTotal();
+    }
+  });
+
+  document.addEventListener('DOMContentLoaded', () => {
+    container.querySelectorAll('.producto-row').forEach(row => {
+      row.querySelector('.producto-select').addEventListener('change', () => {
+        updateRow(row); updateTotal();
+      });
+      row.querySelector('.cantidad-input').addEventListener('input', () => {
+        updateRow(row); updateTotal();
+      });
+      updateRow(row);
+    });
+
+    addBtn.addEventListener('click', () => {
+      const rows = container.querySelectorAll('.producto-row');
+      const newRow = rows[rows.length - 1].cloneNode(true);
+      newRow.querySelector('.producto-select').value = '';
+      newRow.querySelector('.cantidad-input').value = 1;
+      newRow.querySelector('.subtotal-linea').textContent = '';
+      container.appendChild(newRow);
+
+      newRow.querySelector('.producto-select').addEventListener('change', () => {
+        updateRow(newRow); updateTotal();
+      });
+      newRow.querySelector('.cantidad-input').addEventListener('input', () => {
+        updateRow(newRow); updateTotal();
+      });
+    });
+
+    updateTotal();
+  });
+
+  document.querySelector('form').addEventListener('submit', function(e) {
+    const selects = container.querySelectorAll('.producto-select');
+    const codigos = [];
+    let duplicado = false;
+
+    selects.forEach(sel => {
+      sel.classList.remove('is-invalid');
+      const cod = sel.value;
+      if (codigos.includes(cod)) {
+        duplicado = true;
+        sel.classList.add('is-invalid');
+      } else {
+        codigos.push(cod);
+      }
+    });
+
+    if (duplicado) {
+      e.preventDefault();
+      alert("Hay productos duplicados. Por favor, corrige antes de continuar.");
+    }
   });
 </script>
 {% endblock %}
