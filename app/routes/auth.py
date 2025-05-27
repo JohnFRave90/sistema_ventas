@@ -2,10 +2,10 @@ from flask import Blueprint, render_template, redirect, url_for, request, flash,
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import check_password_hash, generate_password_hash
 from app.models.usuario import Usuario
-from app.models.vendedor import Vendedor  # Asegúrate de tener este modelo importado
+from app.models.vendedor import Vendedor  
 from app import db
 from app.routes.utils import UserWrapper
-from app.routes.utils import rol_requerido
+from app.utils.roles        import rol_requerido
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -52,14 +52,12 @@ def login():
 
     return render_template("login.html")
 
-
 @auth_bp.route("/logout")
 @login_required
 def logout():
     logout_user()
     flash("Sesión cerrada exitosamente.", "success")
     return redirect(url_for("auth.login"))
-
 
 @auth_bp.route("/register", methods=["GET", "POST"])
 @rol_requerido('administrador')

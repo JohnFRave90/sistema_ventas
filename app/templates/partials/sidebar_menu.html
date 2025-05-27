@@ -113,6 +113,9 @@
   </div>
   {% endif %}
 
+  {% if current_user.rol == 'root' %}
+  <li><a href="{{ url_for('dashboard.dashboard_root') }}" class="nav-link">🛡 Panel Root</a></li>
+` {% endif %}
 
   <!-- Configuración -->
   {% if current_user.rol == 'administrador' %}
@@ -124,6 +127,7 @@
       <a href="{{ url_for('vendedores.listar_vendedores') }}" class="list-group-item list-group-item-action">Vendedores</a>
       <a href="{{ url_for('productos.listar_productos') }}" class="list-group-item list-group-item-action">Productos</a>
       <a href="{{ url_for('festivos.listar_festivos') }}" class="list-group-item list-group-item-action">Festivos</a>
+      <a href="{{ url_for('configuracion.configurar_telegram') }}" class="list-group-item list-group-item-action">Telegram</a>
     </div>
   {% endif %}
 

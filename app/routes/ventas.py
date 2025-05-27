@@ -16,6 +16,7 @@ from app.models.producto     import Producto
 from app.models.vendedor     import Vendedor
 from app.utils.roles         import rol_requerido
 from app.utils.documentos    import generar_consecutivo
+from app.utils.notificaciones import notificar_accion
 
 ventas_bp = Blueprint('ventas', __name__, url_prefix='/ventas')
 
@@ -23,6 +24,8 @@ ventas_bp = Blueprint('ventas', __name__, url_prefix='/ventas')
 @login_required
 @rol_requerido('semiadmin','administrador')
 def generar_venta():
+    from app.utils.notificaciones import notificar_accion
+
     hoy_iso   = date.today().isoformat()
     fecha_val = request.values.get('fecha', hoy_iso)
     try:
@@ -30,7 +33,6 @@ def generar_venta():
     except:
         fecha_obj, fecha_val = date.today(), hoy_iso
 
-    # Admin y Semiadm pueden elegir vendedor; Vendedor usa su propio código
     if current_user.rol in ['administrador', 'semiadmin']:
         vendedores_list = Vendedor.query.order_by(Vendedor.nombre).all()
         selected_v = request.values.get('vendedor') or (
@@ -40,7 +42,6 @@ def generar_venta():
         vendedores_list = None
         selected_v = current_user.user.codigo_vendedor
 
-    # Carga de documentos pendientes
     pedidos = BDPedido.query.filter_by(
         codigo_vendedor=selected_v, fecha=fecha_obj, usado=False
     ).all()
@@ -51,14 +52,12 @@ def generar_venta():
         BDDevolucion.codigo_vendedor == selected_v,
         BDDevolucion.usos < 2
     ).all()
-    
-    # Códigos seleccionados en el formulario
+
     c_dev_ant = request.values.get('codigo_dev_anterior', '').strip()
     c_ped     = request.values.get('codigo_pedido',        '').strip()
     c_ext     = request.values.get('codigo_extra',         '').strip()
     c_dev_d   = request.values.get('codigo_dev_dia',       '').strip()
 
-    # Helper para recuperar cada documento
     def fetch(modelo, code, by_date=True):
         if not code:
             return None
@@ -72,17 +71,15 @@ def generar_venta():
     ext   = fetch(BDExtra,      c_ext,     True)
     d_dia = fetch(BDDevolucion, c_dev_d,   False)
 
-    # Mapas de precio, nombre y categoría
     prods = Producto.query.with_entities(
         Producto.codigo, Producto.precio,
         Producto.nombre, Producto.categoria
     ).all()
     price = {p.codigo: p.precio     for p in prods}
     names = {p.codigo: p.nombre     for p in prods}
-    cats   = {p.codigo: p.categoria for p in prods}
-    vend   = Vendedor.query.filter_by(codigo_vendedor=selected_v).first()
+    cats  = {p.codigo: p.categoria for p in prods}
+    vend  = Vendedor.query.filter_by(codigo_vendedor=selected_v).first()
 
-    # Construcción del breakdown corregido
     breakdown = []
     temp = {}
     for doc, key in [
@@ -101,12 +98,10 @@ def generar_venta():
                 })
                 temp[code][key] += qty
 
-    # Cálculo final de valores, comisiones y pagar_pan
     for code, vals in temp.items():
         qty = vals['dev_ant'] + vals['pedido'] + vals['extra'] - vals['dev_dia']
         val = price.get(code, 0) * qty
 
-        # SELECCIÓN CORRECTA DE LA COMISIÓN SEGÚN CATEGORÍA
         categoria = cats.get(code, '')
         if categoria == 'panadería':
             pct = (vend.comision_panaderia or 0) / 100
@@ -135,7 +130,6 @@ def generar_venta():
     tot_com = sum(i['comision']  for i in breakdown)
     tot_pan = sum(i['pagar_pan'] for i in breakdown)
 
-    # Confirmación de venta (POST)
     if request.method == 'POST' and 'confirm' in request.form:
         if BDVenta.query.filter_by(
             codigo_vendedor=selected_v, fecha=fecha_obj
@@ -178,10 +172,16 @@ def generar_venta():
         if d_ant: d_ant.usos += 1
         if d_dia: d_dia.usos += 1
         db.session.commit()
+
+        notificar_accion("crear_venta", {
+            "vendedor": vend.nombre,
+            "fecha": venta.fecha.isoformat(),
+            "total": venta.total_venta
+        })
+
         flash('Venta registrada', 'success')
         return redirect(url_for('ventas.listar_ventas'))
 
-    # Renderizado de la plantilla con datos de previsualización
     return render_template(
         'ventas/generar.html',
         fecha_val         = fecha_val,
@@ -239,24 +239,38 @@ def listar_ventas():
 @login_required
 @rol_requerido('administrador')
 def eliminar_venta(vid):
-    v=BDVenta.query.get_or_404(vid)
-    # revertir flags como antes…
+    from app.utils.notificaciones import notificar_accion
+
+    v = BDVenta.query.get_or_404(vid)
+    consecutivo = v.consecutivo
+    fecha = v.fecha.isoformat()
+    vendedor = Vendedor.query.filter_by(codigo_vendedor=v.codigo_vendedor).first()
+    nombre_vendedor = vendedor.nombre if vendedor else v.codigo_vendedor
+
+    # Revertir flags
     if v.codigo_pedido:
-        p=BDPedido.query.filter_by(consecutivo=v.codigo_pedido).first()
-        if p: p.usado=False
+        p = BDPedido.query.filter_by(consecutivo=v.codigo_pedido).first()
+        if p: p.usado = False
     if v.codigo_extra:
-        e=BDExtra.query.filter_by(consecutivo=v.codigo_extra).first()
-        if e: e.usado=False
+        e = BDExtra.query.filter_by(consecutivo=v.codigo_extra).first()
+        if e: e.usado = False
     if v.codigo_dev_anterior:
-        da=BDDevolucion.query.filter_by(consecutivo=v.codigo_dev_anterior).first()
-        if da and da.usos>0: da.usos-=1
+        da = BDDevolucion.query.filter_by(consecutivo=v.codigo_dev_anterior).first()
+        if da and da.usos > 0: da.usos -= 1
     if v.codigo_dev_dia:
-        dd=BDDevolucion.query.filter_by(consecutivo=v.codigo_dev_dia).first()
-        if dd and dd.usos>0: dd.usos-=1
+        dd = BDDevolucion.query.filter_by(consecutivo=v.codigo_dev_dia).first()
+        if dd and dd.usos > 0: dd.usos -= 1
 
     db.session.delete(v)
     db.session.commit()
-    flash("Venta eliminada.","success")
+
+    notificar_accion("eliminar_venta", {
+        "consecutivo": consecutivo,
+        "fecha": fecha,
+        "vendedor": nombre_vendedor
+    })
+
+    flash("Venta eliminada.", "success")
     return redirect(url_for('ventas.listar_ventas'))
 
 @ventas_bp.route('/export_pdf/<int:venta_id>', methods=['GET'])

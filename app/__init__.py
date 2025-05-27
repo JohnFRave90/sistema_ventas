@@ -29,7 +29,6 @@ def create_app():
     from app.models.vendedor import Vendedor
     from app.routes.utils import UserWrapper
 
-
     @login_manager.user_loader
     def load_user(user_id):
         if ':' in user_id:
@@ -41,12 +40,13 @@ def create_app():
         else:
             return Usuario.query.get(int(user_id))  # Fallback si no tiene prefijo
 
-        @app.route('/uploads/<path:filename>')
-        def descargar_archivo_uploads(filename):
-            uploads_path = os.path.join(current_app.root_path, 'uploads')
-            return send_from_directory(uploads_path, filename)
+    # Ruta para servir archivos subidos
+    @app.route('/uploads/<path:filename>')
+    def descargar_archivo_uploads(filename):
+        uploads_path = os.path.join(current_app.root_path, 'uploads')
+        return send_from_directory(uploads_path, filename)
 
-    # Registrar blueprints
+    # Registrar Blueprints
     from app.routes.auth import auth_bp
     from app.routes.main import main_bp
     from app.routes.vendedores import vendedores_bp
@@ -64,7 +64,7 @@ def create_app():
     from app.routes.reportes_liquidaciones import reportes_liquidaciones_bp
     from app.routes.canastas import bp_canastas
     from app.routes.movimientos import bp_movimientos
-
+    from app.routes.configuracion import config_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
@@ -83,5 +83,14 @@ def create_app():
     app.register_blueprint(reportes_liquidaciones_bp, url_prefix='/reportes/liquidaciones')
     app.register_blueprint(bp_canastas)
     app.register_blueprint(bp_movimientos)
+    app.register_blueprint(config_bp)
+    
+
+    # Registrar comandos CLI personalizados
+    from app.cli.root import crear_root
+    from app.cli.mantenimiento import borrar_movimientos_canastas, borrar_canastas_total
+    app.cli.add_command(crear_root)
+    app.cli.add_command(borrar_movimientos_canastas)
+    app.cli.add_command(borrar_canastas_total)
 
     return app

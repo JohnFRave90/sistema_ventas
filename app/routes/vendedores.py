@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash
 from app.models.vendedor import Vendedor
 from app import db
 from flask_login import login_required, current_user
-from app.routes.utils import rol_requerido
+from app.utils.roles import rol_requerido
 
 vendedores_bp = Blueprint('vendedores', __name__, url_prefix='/vendedores')
 

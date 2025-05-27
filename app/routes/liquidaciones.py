@@ -12,6 +12,7 @@ from datetime import datetime
 from flask import send_file
 from io import BytesIO
 from app.models.cambio import BD_CAMBIO
+from app.utils.notificaciones import notificar_accion
 
 liquidaciones_bp = Blueprint('liquidaciones', __name__, url_prefix='/liquidaciones')
 
@@ -19,6 +20,8 @@ liquidaciones_bp = Blueprint('liquidaciones', __name__, url_prefix='/liquidacion
 @login_required
 @rol_requerido('administrador', 'semiadmin')
 def crear_liquidacion():
+    from app.utils.notificaciones import notificar_accion
+
     vendedores = Vendedor.query.order_by(Vendedor.nombre).all()
 
     fecha = request.form.get('fecha')
@@ -31,25 +34,20 @@ def crear_liquidacion():
     if fecha and vendedor_codigo:
         fecha_obj = datetime.strptime(fecha, '%Y-%m-%d').date()
 
-        # Validar si ya existe liquidación
         existente = BD_LIQUIDACION.query.filter_by(fecha=fecha_obj, codigo_vendedor=vendedor_codigo).first()
         if existente:
             flash(f"Ya existe una liquidación para este vendedor en esa fecha.", "danger")
             return redirect(url_for('liquidaciones.crear_liquidacion'))
 
-        # Buscar venta no liquidada
         venta = BDVenta.query.filter_by(fecha=fecha_obj, codigo_vendedor=vendedor_codigo, liquidada=0).first()
         if not venta:
             flash("No hay venta pendiente para liquidar ese día y vendedor.", "warning")
             return render_template('liquidaciones/crear.html', vendedores=vendedores)
 
-        # Buscar cambio (opcional)
         cambio = BD_CAMBIO.query.filter_by(fecha=fecha_obj, codigo_vendedor=vendedor_codigo).first()
         descuento_cambios = float(cambio.valor_cambio) if cambio else 0.0
 
-        # Si el formulario ya trae campos de pago, procesar liquidación
         if 'pago_banco' in request.form:
-            # Captura de pagos
             pago_banco = float(request.form.get('pago_banco', 0) or 0)
             pago_efectivo = float(request.form.get('pago_efectivo', 0) or 0)
             pago_otros = float(request.form.get('pago_otros', 0) or 0)
@@ -60,10 +58,8 @@ def crear_liquidacion():
             valor_panaderia = valor_venta - valor_comision
             total_a_pagar = valor_panaderia - descuento_cambios
 
-            # Generar código LQ
             codigo = generar_codigo_liquidacion()
 
-            # Crear liquidación
             liquidacion = BD_LIQUIDACION(
                 codigo=codigo,
                 fecha=fecha_obj,
@@ -81,9 +77,15 @@ def crear_liquidacion():
             )
             db.session.add(liquidacion)
 
-            # Marcar venta como liquidada
             venta.liquidada = 1
             db.session.commit()
+
+            vendedor = Vendedor.query.filter_by(codigo_vendedor=vendedor_codigo).first()
+            notificar_accion("crear_liquidacion", {
+                "vendedor": vendedor.nombre if vendedor else vendedor_codigo,
+                "fecha_inicio": fecha,
+                "fecha_fin": fecha
+            })
 
             flash(f"Liquidación {codigo} creada correctamente.", "success")
             return redirect(url_for('liquidaciones.listar_liquidaciones'))
@@ -130,34 +132,39 @@ def listar_liquidaciones():
 @login_required
 @rol_requerido('administrador')
 def editar_liquidacion(id):
+    from app.utils.notificaciones import notificar_accion
+
     liquidacion = BD_LIQUIDACION.query.get_or_404(id)
 
-    # Obtener venta y vendedor asociados
     venta = BDVenta.query.get_or_404(liquidacion.codigo_venta)
     vendedor = Vendedor.query.filter_by(codigo_vendedor=liquidacion.codigo_vendedor).first()
     cambio = BD_CAMBIO.query.filter_by(fecha=liquidacion.fecha, codigo_vendedor=liquidacion.codigo_vendedor).first()
     descuento_cambios = cambio.valor_cambio if cambio else 0
 
-    # Recalcular totales basados en la venta y descuento actualizados
     valor_venta = venta.total_venta
     valor_comision = venta.comision
     valor_panaderia = valor_venta - valor_comision
     total_a_pagar = valor_panaderia - descuento_cambios
 
     if request.method == 'POST':
-        # Captura de pagos y comentarios
         liquidacion.pago_banco = float(request.form.get('pago_banco', 0) or 0)
         liquidacion.pago_efectivo = float(request.form.get('pago_efectivo', 0) or 0)
         liquidacion.pago_otros = float(request.form.get('pago_otros', 0) or 0)
         liquidacion.comentarios = request.form.get('comentarios', '')
 
-        # Actualización de valores calculados (por si hubo cambios)
         liquidacion.valor_venta = valor_venta
         liquidacion.valor_comision = valor_comision
         liquidacion.descuento_cambios = descuento_cambios
         liquidacion.valor_a_pagar = total_a_pagar
 
         db.session.commit()
+
+        notificar_accion("editar_liquidacion", {
+            "codigo": liquidacion.codigo,
+            "vendedor": vendedor.nombre if vendedor else liquidacion.codigo_vendedor,
+            "fecha": liquidacion.fecha.isoformat()
+        })
+
         flash(f"Liquidación {liquidacion.codigo} actualizada correctamente.", "success")
         return redirect(url_for('liquidaciones.listar_liquidaciones'))
 
@@ -172,18 +179,31 @@ def editar_liquidacion(id):
 @login_required
 @rol_requerido('administrador')
 def eliminar_liquidacion(id):
+    from app.utils.notificaciones import notificar_accion
+
     liquidacion = BD_LIQUIDACION.query.get_or_404(id)
 
-    # Revertir la venta a no liquidada
+    # Guardar datos antes de eliminar
+    codigo = liquidacion.codigo
+    fecha = liquidacion.fecha.isoformat()
+    vendedor = Vendedor.query.filter_by(codigo_vendedor=liquidacion.codigo_vendedor).first()
+    nombre_vendedor = vendedor.nombre if vendedor else liquidacion.codigo_vendedor
+
+    # Revertir venta
     venta = BDVenta.query.get(liquidacion.codigo_venta)
     if venta:
         venta.liquidada = 0
 
-    # Eliminar la liquidación
     db.session.delete(liquidacion)
     db.session.commit()
 
-    flash(f"Liquidación {liquidacion.codigo} eliminada correctamente.", "success")
+    notificar_accion("eliminar_liquidacion", {
+        "codigo": codigo,
+        "vendedor": nombre_vendedor,
+        "fecha": fecha
+    })
+
+    flash(f"Liquidación {codigo} eliminada correctamente.", "success")
     return redirect(url_for('liquidaciones.listar_liquidaciones'))
 
 @liquidaciones_bp.route('/exportar/<int:id>', methods=['GET'])

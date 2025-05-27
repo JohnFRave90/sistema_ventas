@@ -7,6 +7,8 @@ from flask_login import login_required, current_user
 from datetime import date, datetime  # Corregido para usar datetime.strptime
 from flask import make_response, current_app
 from app.utils.pdf_utils import generate_pdf_document
+from app.utils.notificaciones import notificar_accion
+
 
 from app import db
 from app.models.extras import BDExtra
@@ -23,27 +25,23 @@ extras_bp = Blueprint('extras', __name__, url_prefix='/extras')
 @rol_requerido('administrador', 'semiadmin', 'vendedor')
 def crear_extra():
     from app.utils.productos import get_productos_ordenados
+    from app.utils.notificaciones import notificar_accion
 
-    # 1) Catálogo de productos
     productos = get_productos_ordenados()
-
-    # 2) Sólo admin/semiadmin ven el dropdown de vendedores
     vendedores = None
     if current_user.rol in ['administrador', 'semiadmin']:
         vendedores = Vendedor.query.order_by(Vendedor.nombre).all()
 
-    # 3) Fecha por defecto
-    hoy_iso   = date.today().isoformat()
+    hoy_iso = date.today().isoformat()
     fecha_val = hoy_iso
 
-    # 4) Determinar código_vendedor
     if current_user.rol in ['administrador', 'semiadmin']:
         selected_vendedor = None
     else:
         selected_vendedor = current_user.codigo_vendedor
 
-    comentarios   = ''
-    items         = [{'codigo': '', 'cantidad': 1}]
+    comentarios = ''
+    items = [{'codigo': '', 'cantidad': 1}]
     error_max_one = False
 
     if request.method == 'POST':
@@ -58,7 +56,7 @@ def crear_extra():
 
         comentarios = request.form.get('comentarios', '').strip()
 
-        codigos    = request.form.getlist('producto')
+        codigos = request.form.getlist('producto')
         cantidades = request.form.getlist('cantidad')
         items = [
             {'codigo': c, 'cantidad': int(q)}
@@ -95,6 +93,14 @@ def crear_extra():
                 ))
 
             db.session.commit()
+
+            vendedor = Vendedor.query.filter_by(codigo_vendedor=selected_vendedor).first()
+            notificar_accion("crear_extra", {
+                "consecutivo": nuevo.consecutivo,
+                "vendedor": vendedor.nombre if vendedor else selected_vendedor,
+                "fecha": nuevo.fecha.isoformat()
+            })
+
             flash("Extra registrado correctamente.", "success")
             return redirect(url_for('extras.listar_extras'))
 
@@ -148,6 +154,7 @@ def listar_extras():
 @rol_requerido('administrador')
 def editar_extra(eid):
     from app.utils.productos import get_productos_ordenados
+    from app.utils.notificaciones import notificar_accion
 
     extra = BDExtra.query.get_or_404(eid)
     productos = get_productos_ordenados()
@@ -180,6 +187,11 @@ def editar_extra(eid):
                 db.session.add(item)
 
         db.session.commit()
+
+        notificar_accion("editar_extra", {
+            "consecutivo": extra.consecutivo
+        })
+
         flash('Extra actualizado correctamente.', 'success')
         return redirect(url_for('extras.listar_extras'))
 
@@ -207,11 +219,20 @@ def editar_extra(eid):
 @login_required
 @rol_requerido('administrador')
 def eliminar_extra(eid):
+    from app.utils.notificaciones import notificar_accion
+
     extra = BDExtra.query.get_or_404(eid)
+    consecutivo = extra.consecutivo  # Guardar antes de eliminar
+
     for i in extra.items:
         db.session.delete(i)
     db.session.delete(extra)
     db.session.commit()
+
+    notificar_accion("eliminar_extra", {
+        "consecutivo": consecutivo
+    })
+
     flash('Extra eliminado correctamente.', 'success')
     return redirect(url_for('extras.listar_extras'))
 

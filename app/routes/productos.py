@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from app import db
 from app.models.producto import Producto
-from app.routes.utils import rol_requerido
+from app.utils.roles import rol_requerido
 import csv
 from werkzeug.utils import secure_filename
 import os

@@ -11,6 +11,7 @@ from app.models.producto    import Producto
 from app.models.vendedor    import Vendedor
 from app.utils.roles        import rol_requerido
 from app.utils.documentos   import generar_consecutivo
+from app.utils.notificaciones import notificar_accion
 
 pedidos_bp = Blueprint('pedidos', __name__, url_prefix='/pedidos')
 
@@ -19,22 +20,18 @@ pedidos_bp = Blueprint('pedidos', __name__, url_prefix='/pedidos')
 @rol_requerido('vendedor', 'administrador')
 def crear_pedido():
     from app.utils.productos import get_productos_ordenados
+    from app.utils.notificaciones import notificar_accion
 
-    # 1) Catálogo de productos (orden personalizado)
     productos = get_productos_ordenados()
 
-    # 2) Sólo admin/semiadmin ven el select de vendedores
     vendedores = None
     if current_user.rol in ['administrador', 'semiadmin']:
         vendedores = Vendedor.query.order_by(Vendedor.nombre).all()
 
-    # 3) Fecha inicial
     hoy_iso = date.today().isoformat()
     fecha_val = hoy_iso
 
-    # 4) Determinar el código de vendedor
     if current_user.rol in ['administrador', 'semiadmin']:
-        # el admin/semiadmin lo elegirá del formulario
         selected_v = None
     else:
         selected_v = current_user.codigo_vendedor
@@ -44,20 +41,17 @@ def crear_pedido():
     error_dup = False
 
     if request.method == 'POST':
-        # — Leer fecha —
         fecha_val = request.form.get('fecha') or hoy_iso
         try:
             fecha_obj = datetime.strptime(fecha_val, '%Y-%m-%d').date()
         except ValueError:
             fecha_obj = date.today()
 
-        # — Si es admin o semiadmin, permitimos elegir vendedor —
         if current_user.rol in ['administrador', 'semiadmin']:
             selected_v = request.form.get('vendedor') or selected_v
 
         comentarios = request.form.get('comentarios', '').strip()
 
-        # — Items dinámicos —
         cods = request.form.getlist('producto')
         cants = request.form.getlist('cantidad')
         items_data = [
@@ -65,7 +59,6 @@ def crear_pedido():
             for c, q in zip(cods, cants) if c and q
         ]
 
-        # — Validación: 1 pedido/día/vendedor —
         if BDPedido.query.filter_by(
             codigo_vendedor=selected_v,
             fecha=fecha_obj
@@ -73,7 +66,6 @@ def crear_pedido():
             error_dup = True
             flash("Ya existe un pedido para ese día y vendedor.", "warning")
         else:
-            # — Crear pedido y sus items —
             pedido = BDPedido(
                 consecutivo=generar_consecutivo(BDPedido, 'PD'),
                 codigo_vendedor=selected_v,
@@ -94,10 +86,17 @@ def crear_pedido():
                 )
             db.session.add(pedido)
             db.session.commit()
+
+            vendedor = Vendedor.query.filter_by(codigo_vendedor=selected_v).first()
+            notificar_accion("crear_pedido", {
+                "consecutivo": pedido.consecutivo,
+                "vendedor": vendedor.nombre if vendedor else selected_v,
+                "fecha": pedido.fecha.isoformat()
+            })
+
             flash("Pedido creado correctamente.", "success")
             return redirect(url_for('pedidos.listar_pedidos'))
 
-    # 5) Renderizar formulario (GET o POST con errores)
     return render_template(
         'pedidos/crear.html',
         productos=productos,
@@ -151,6 +150,7 @@ def listar_pedidos():
 @rol_requerido('administrador')
 def editar_pedido(pid):
     from app.utils.productos import get_productos_ordenados
+    from app.utils.notificaciones import notificar_accion
 
     pedido     = BDPedido.query.get_or_404(pid)
     productos  = get_productos_ordenados()
@@ -159,7 +159,6 @@ def editar_pedido(pid):
                   for it in pedido.items]
 
     if request.method == 'POST':
-        # actualizo campos
         f = request.form.get('fecha')
         try:
             pedido.fecha = datetime.strptime(f, '%Y-%m-%d').date()
@@ -169,7 +168,6 @@ def editar_pedido(pid):
         pedido.codigo_vendedor = request.form.get('vendedor', pedido.codigo_vendedor)
         pedido.comentarios     = request.form.get('comentarios', '').strip()
 
-        # reconstruyo items
         pedido.items.clear()
         cods  = request.form.getlist('producto')
         cants = request.form.getlist('cantidad')
@@ -188,6 +186,11 @@ def editar_pedido(pid):
                 )
 
         db.session.commit()
+
+        notificar_accion("editar_pedido", {
+            "consecutivo": pedido.consecutivo
+        })
+
         flash("Pedido actualizado.", "success")
         return redirect(url_for('pedidos.listar_pedidos'))
 
@@ -203,10 +206,19 @@ def editar_pedido(pid):
 @login_required
 @rol_requerido('administrador')
 def eliminar_pedido(pid):
+    from app.utils.notificaciones import notificar_accion
+
     p = BDPedido.query.get_or_404(pid)
+    consecutivo = p.consecutivo  # Guardar antes de eliminar
+
     db.session.delete(p)
     db.session.commit()
-    flash("Pedido eliminado.","success")
+
+    notificar_accion("eliminar_pedido", {
+        "consecutivo": consecutivo
+    })
+
+    flash("Pedido eliminado.", "success")
     return redirect(url_for('pedidos.listar_pedidos'))
 
 @pedidos_bp.route('/export_pdf/<int:pid>', methods=['GET'])

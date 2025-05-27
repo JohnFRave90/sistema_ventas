@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Panel de Control - Root{% endblock %}
+{% block content %}
+
+<div class="container-fluid px-2 py-3">
+  <h4 class="mb-4 text-center">Dashboard de Superusuario</h4>
+
+  <div class="row justify-content-center mb-4">
+    <div class="col-md-6">
+      <div class="d-grid gap-3">
+
+        <!-- Botón: Ver Auditoría -->
+        <a href="{{ url_for('auditoria.ver_auditoria') }}" class="btn btn-outline-dark btn-lg w-100">
+          <i class="bi bi-shield-check"></i> Ver Auditoría del Sistema
+        </a>
+
+        <!-- Botón: Borrar Movimientos -->
+        <form action="{{ url_for('movimientos.borrar_movimientos') }}" method="POST"
+              onsubmit="return confirm('¿Estás seguro de eliminar TODOS los movimientos de canastas?');">
+          <button class="btn btn-danger btn-lg w-100">
+            <i class="bi bi-trash"></i> Borrar TODOS los Movimientos
+          </button>
+        </form>
+
+        <!-- Botón: Borrar Canastas -->
+        <form action="{{ url_for('movimientos.borrar_canastas') }}" method="POST"
+              onsubmit="return confirm('¿Estás seguro de eliminar TODAS las canastas?');">
+          <button class="btn btn-danger btn-lg w-100">
+            <i class="bi bi-trash3"></i> Borrar TODAS las Canastas
+          </button>
+        </form>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

@@ -8,4 +8,4 @@ def generar_consecutivo(model, prefix):
     """
     ultimo = model.query.order_by(model.id.desc()).first()
     n = (ultimo.id + 1) if ultimo else 1
-    return f"{prefix}-{n:04d}"
+    return f"{prefix}-{n:05d}"

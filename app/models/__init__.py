@@ -22,3 +22,5 @@ from .festivo           import Festivo
 
 from app.models import canastas
 
+from .config_telegram import ConfiguracionTelegram
+

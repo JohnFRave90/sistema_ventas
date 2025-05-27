@@ -2,6 +2,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from flask_login import login_required, current_user
 from flask import send_file, Response
 from app import db
+from sqlalchemy import text
 from app.models.canastas import Canasta, MovimientoCanasta
 from app.models.vendedor import Vendedor
 from datetime import datetime
@@ -308,5 +309,33 @@ def informe_canastas_prestadas_por_vendedor():
         flash(f'Ocurrió un error al generar el informe: {e}', 'danger')
         return render_template('vendedores/informe_canastas_prestadas.html', canastas_prestadas=[])
 
+# Borrar todos los movimientos (solo root)
+@bp_movimientos.route('/borrar_movimientos', methods=['POST'])
+@login_required
+@rol_requerido('root')
+def borrar_movimientos():
+    try:
+        db.session.execute(text('DELETE FROM movimientos'))
+        db.session.execute(text('UPDATE canastas SET actualidad = "Disponible"'))
+        db.session.commit()
+        flash('✔ Todos los movimientos han sido borrados y las canastas se actualizaron a "Disponible".', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'❌ Error al borrar los movimientos: {e}', 'danger')
+    return redirect(url_for('dashboard.dashboard'))  # Redirige a dashboard o página principal
+
+# Borrar todas las canastas (solo root)
+@bp_movimientos.route('/borrar_canastas', methods=['POST'])
+@login_required
+@rol_requerido('root')
+def borrar_canastas():
+    try:
+        db.session.execute(text('DELETE FROM canastas'))
+        db.session.commit()
+        flash('✔ Todas las canastas han sido borradas.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'❌ Error al borrar las canastas: {e}', 'danger')
+    return redirect(url_for('dashboard.dashboard'))
 
 
