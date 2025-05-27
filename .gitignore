@@ -14,7 +14,6 @@ scripts_ventas/
 .envconfig
 *.envconfig
 .flaskenv
-crear_tablas.py
 
 # Flask instance folder
 instance/
