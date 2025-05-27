@@ -4,7 +4,7 @@ from flask_login import current_user
 def notificar_accion(tipo, datos):
     try:
         usuario = current_user.nombre_usuario if current_user.is_authenticated else "sistema"
-        
+
         if tipo == "crear_pedido":
             mensaje = f"📦 *Nuevo pedido* `{datos['consecutivo']}` creado por *{usuario}* para *{datos['vendedor']}* el `{datos['fecha']}`."
 
@@ -35,8 +35,17 @@ def notificar_accion(tipo, datos):
         elif tipo == "crear_venta":
             mensaje = f"💰 *Venta* registrada por *{usuario}* para *{datos['vendedor']}* el `{datos['fecha']}`.\nValor: ${datos['total']:,.0f}"
 
+        elif tipo == "eliminar_venta":
+            mensaje = f"🗑 *Venta* `{datos['consecutivo']}` del *{datos['vendedor']}* el `{datos['fecha']}` fue *eliminada* por *{usuario}*."
+
         elif tipo == "crear_liquidacion":
             mensaje = f"📄 *Liquidación* generada por *{usuario}* para *{datos['vendedor']}* del `{datos['fecha_inicio']}` al `{datos['fecha_fin']}`."
+
+        elif tipo == "editar_liquidacion":
+            mensaje = f"✏️ *Liquidación* `{datos['codigo']}` fue *editada* por *{usuario}* para *{datos['vendedor']}* el `{datos['fecha']}`."
+
+        elif tipo == "eliminar_liquidacion":
+            mensaje = f"🗑 *Liquidación* `{datos['codigo']}` fue *eliminada* por *{usuario}* para *{datos['vendedor']}* el `{datos['fecha']}`."
 
         else:
             mensaje = f"🔔 Acción desconocida ejecutada por *{usuario}*: `{tipo}`"
