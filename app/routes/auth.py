@@ -60,6 +60,7 @@ def logout():
     return redirect(url_for("auth.login"))
 
 @auth_bp.route("/register", methods=["GET", "POST"])
+@rol_requerido('administrador')
 def register():
     if request.method == "POST":
         username = request.form.get("username")
