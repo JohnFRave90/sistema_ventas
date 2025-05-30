@@ -171,7 +171,7 @@ def generate_pdf_document(modelo, vendedor, logo_path, tipo):
         data = [[
             Paragraph('Producto',  header_cell),
             Paragraph('Cant.',      header_cell),
-            Paragraph('Valor Unit.',header_cell),
+            Paragraph('Lote',header_cell),
             Paragraph('Subtotal',   header_cell)
         ]]
         tot_val = 0
@@ -184,12 +184,13 @@ def generate_pdf_document(modelo, vendedor, logo_path, tipo):
                 continue
             nombre = productos.get(it.producto_cod, it.producto_cod)
             cant = it.cantidad
+            lote = ""
             vu   = it.precio_unit
             sub  = vu * cant
             data.append([
                 Paragraph(f"{it.producto_cod} {nombre}", cell_style),
                 Paragraph(str(cant),                     cell_style),
-                Paragraph(f"${vu:,.0f}",                 cell_style),
+                Paragraph(f"{lote}",                     cell_style),
                 Paragraph(f"${sub:,.0f}",                cell_style)
             ])
             tot_val += sub
