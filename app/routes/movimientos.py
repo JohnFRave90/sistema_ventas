@@ -38,7 +38,7 @@ def registrar_movimiento():
 
                     if tipo == 'Entra' and not ultima:
                         flash('No se ha registrado ningún movimiento para esta canasta, no se puede devolver.', 'danger')
-                    elif ultima and tipo == 'Entra' and ultima.vendedor_id != vendedor.codigo_vendedor:
+                    elif ultima and tipo == 'Entra' and ultima.codigo_vendedor != vendedor.codigo_vendedor:
                         flash('Esta canasta ha sido prestada a otro vendedor. No puedes devolverla.', 'danger')
                     elif tipo == 'Sale' and canasta.actualidad == 'Prestada':
                         flash('Esta canasta ya ha sido prestada.', 'danger')
