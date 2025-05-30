@@ -214,6 +214,7 @@ def informe_vendedores():
 @rol_requerido('semiadmin', 'administrador')
 def resumen_canastas_vendedor():
     from sqlalchemy import func
+    from sqlalchemy.orm import aliased
 
     # Lista de vendedores para el formulario
     vendedores = Vendedor.query.order_by(Vendedor.nombre.asc()).all()
@@ -230,36 +231,52 @@ def resumen_canastas_vendedor():
             flash('Vendedor no encontrado', 'danger')
             return render_template('vendedores/resumen_canastas.html', vendedores=vendedores, canastas=[], resumen=[])
 
-        # Resumen agrupado: cantidad de canastas prestadas activas
-        resumen = (db.session.query(
-            Canasta.tamaño,
-            Canasta.color,
-            func.count().label('cantidad')
-        )
-        .join(MovimientoCanasta, Canasta.codigo_barras == MovimientoCanasta.codigo_barras)
-        .filter(
-            MovimientoCanasta.codigo_vendedor == vendedor.codigo_vendedor,
-            MovimientoCanasta.tipo_movimiento == 'Sale',
-            Canasta.actualidad == 'Prestada'
-        )
-        .group_by(Canasta.tamaño, Canasta.color)
-        .all())
+        # Aliased para representar el último movimiento por canasta
+        UltimoMov = aliased(MovimientoCanasta)
 
-        # Detalle de canastas prestadas activas
-        canastas = (db.session.query(
-            Canasta.codigo_barras,
-            Canasta.tamaño,
-            Canasta.color,
-            MovimientoCanasta.fecha_movimiento
+        # Subconsulta: ID del último movimiento por cada canasta
+        subconsulta = (
+            db.session.query(
+                func.max(MovimientoCanasta.id).label('ultimo_id')
+            )
+            .group_by(MovimientoCanasta.codigo_barras)
+            .subquery()
         )
-        .join(MovimientoCanasta, Canasta.codigo_barras == MovimientoCanasta.codigo_barras)
-        .filter(
-            MovimientoCanasta.codigo_vendedor == vendedor.codigo_vendedor,
-            MovimientoCanasta.tipo_movimiento == 'Sale',
-            Canasta.actualidad == 'Prestada'
+
+        # Consulta principal: resumen de canastas prestadas actualmente por ese vendedor
+        resumen = (
+            db.session.query(
+                Canasta.tamaño,
+                Canasta.color,
+                func.count().label('cantidad')
+            )
+            .join(UltimoMov, Canasta.codigo_barras == UltimoMov.codigo_barras)
+            .filter(
+                UltimoMov.id.in_(subconsulta),
+                UltimoMov.tipo_movimiento == 'Sale',
+                UltimoMov.codigo_vendedor == vendedor.codigo_vendedor
+            )
+            .group_by(Canasta.tamaño, Canasta.color)
+            .all()
         )
-        .order_by(MovimientoCanasta.fecha_movimiento.desc())
-        .all())
+
+        # Detalle de canastas prestadas activas por ese vendedor
+        canastas = (
+            db.session.query(
+                Canasta.codigo_barras,
+                Canasta.tamaño,
+                Canasta.color,
+                UltimoMov.fecha_movimiento
+            )
+            .join(UltimoMov, Canasta.codigo_barras == UltimoMov.codigo_barras)
+            .filter(
+                UltimoMov.id.in_(subconsulta),
+                UltimoMov.tipo_movimiento == 'Sale',
+                UltimoMov.codigo_vendedor == vendedor.codigo_vendedor
+            )
+            .order_by(UltimoMov.fecha_movimiento.desc())
+            .all()
+        )
 
     return render_template('vendedores/resumen_canastas.html',
                            vendedores=vendedores,
