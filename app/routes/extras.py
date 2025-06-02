@@ -119,12 +119,13 @@ def crear_extra():
 @extras_bp.route('/listar', methods=['GET'])
 @login_required
 def listar_extras():
-    filtro_fecha = request.args.get('fecha')
+    filtro_fecha       = request.args.get('fecha')
     filtro_consecutivo = request.args.get('consecutivo', '').strip()
+    page               = request.args.get('page', 1, type=int)
 
     query = BDExtra.query
     if current_user.rol == 'vendedor':
-        query = query.filter_by(codigo_vendedor=current_user.codigo_vendedor)  # ← corregido aquí
+        query = query.filter_by(codigo_vendedor=current_user.codigo_vendedor)
 
     if filtro_fecha:
         try:
@@ -136,15 +137,18 @@ def listar_extras():
     if filtro_consecutivo:
         query = query.filter(BDExtra.consecutivo.ilike(f"%{filtro_consecutivo}%"))
 
-    extras = query.order_by(BDExtra.fecha.desc()).all()
+    paginacion = query.order_by(BDExtra.fecha.desc()).paginate(page=page, per_page=30)
+
     vendedores_map = {v.codigo_vendedor: v.nombre for v in Vendedor.query.all()}
 
-    for ex in extras:
+    # Calcular total por cada extra mostrado en la página actual
+    for ex in paginacion.items:
         ex.total = sum(i.subtotal for i in ex.items)
 
     return render_template(
         'extras/listar.html',
-        extras=extras,
+        extras=paginacion.items,
+        pagination=paginacion,
         vendedores=vendedores_map,
         filtro_fecha=filtro_fecha,
         filtro_consecutivo=filtro_consecutivo

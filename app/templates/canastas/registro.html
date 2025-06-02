@@ -1,9 +1,11 @@
 {% extends 'base.html' %}
 {% block title %}Registrar Canasta{% endblock %}
+
 {% block content %}
 <div class="container mt-4">
     <h2>Registrar Canasta</h2>
 
+    <!-- Formulario de registro -->
     <form method="POST" autocomplete="off" class="mb-4">
         <div class="row">
             <div class="col-md-6 mb-3">
@@ -53,10 +55,12 @@
         </div>
     </form>
 
+    <!-- Exportar -->
     <form action="{{ url_for('canastas.exportar_canastas_csv') }}" method="GET" class="mb-4">
         <button type="submit" class="btn btn-outline-success">Exportar Canastas a CSV</button>
     </form>
 
+    <!-- Tabla de canastas -->
     <h4>Canastas Registradas</h4>
     <table class="table table-bordered table-striped">
         <thead>
@@ -82,10 +86,49 @@
             {% endfor %}
         </tbody>
     </table>
+
+    <!-- Paginación -->
+    {% if pagination %}
+    <nav aria-label="Paginación">
+        <ul class="pagination justify-content-center">
+            {% if pagination.has_prev %}
+            <li class="page-item">
+                <a class="page-link" href="{{ url_for('canastas.registrar_canasta', page=pagination.prev_num) }}">Anterior</a>
+            </li>
+            {% else %}
+            <li class="page-item disabled">
+                <span class="page-link">Anterior</span>
+            </li>
+            {% endif %}
+
+            {% for p in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                {% if p %}
+                    {% if p == pagination.page %}
+                        <li class="page-item active"><span class="page-link">{{ p }}</span></li>
+                    {% else %}
+                        <li class="page-item"><a class="page-link" href="{{ url_for('canastas.registrar_canasta', page=p) }}">{{ p }}</a></li>
+                    {% endif %}
+                {% else %}
+                    <li class="page-item disabled"><span class="page-link">…</span></li>
+                {% endif %}
+            {% endfor %}
+
+            {% if pagination.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="{{ url_for('canastas.registrar_canasta', page=pagination.next_num) }}">Siguiente</a>
+            </li>
+            {% else %}
+            <li class="page-item disabled">
+                <span class="page-link">Siguiente</span>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
 </div>
 
 <script>
-    window.onload = function() {
+    window.onload = function () {
         const codigoInput = document.getElementById("codigo_barras");
         codigoInput.focus();
 

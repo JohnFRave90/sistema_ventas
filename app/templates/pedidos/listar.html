@@ -26,6 +26,7 @@
     </div>
   </form>
 
+  <!-- Tabla -->
   <div class="table-responsive">
     <table class="table table-hover align-middle">
       <thead class="table-light">
@@ -48,21 +49,14 @@
           <td>{{ p.comentarios or '-' }}</td>
           <td>
             <div class="d-flex gap-2">
-              <!-- PDF accesible para todos -->
-              <a href="{{ url_for('pedidos.export_pdf_pedido', pid=p.id) }}"
-                 class="btn btn-outline-secondary btn-sm"
-                 title="Exportar PDF">
+              <a href="{{ url_for('pedidos.export_pdf_pedido', pid=p.id) }}" class="btn btn-outline-secondary btn-sm" title="Exportar PDF">
                 <i class="bi bi-file-earmark-pdf"></i>
               </a>
               {% if current_user.rol == 'administrador' %}
-              <a href="{{ url_for('pedidos.editar_pedido', pid=p.id) }}"
-                 class="btn btn-outline-primary btn-sm"
-                 title="Editar">
+              <a href="{{ url_for('pedidos.editar_pedido', pid=p.id) }}" class="btn btn-outline-primary btn-sm" title="Editar">
                 <i class="bi bi-pencil-square"></i>
               </a>
-              <form action="{{ url_for('pedidos.eliminar_pedido', pid=p.id) }}"
-                    method="POST"
-                    onsubmit="return confirm('¿Eliminar este pedido?');">
+              <form action="{{ url_for('pedidos.eliminar_pedido', pid=p.id) }}" method="POST" onsubmit="return confirm('¿Eliminar este pedido?');">
                 <button type="submit" class="btn btn-outline-danger btn-sm" title="Eliminar">
                   <i class="bi bi-trash3"></i>
                 </button>
@@ -79,5 +73,42 @@
       </tbody>
     </table>
   </div>
+
+  <!-- Paginación -->
+  {% if pagination %}
+  <nav aria-label="Paginación de pedidos">
+    <ul class="pagination justify-content-center">
+      {% if pagination.has_prev %}
+      <li class="page-item">
+        <a class="page-link" href="{{ url_for('pedidos.listar_pedidos', page=pagination.prev_num, fecha=filtro_fecha, consecutivo=filtro_consecutivo) }}">Anterior</a>
+      </li>
+      {% else %}
+      <li class="page-item disabled"><span class="page-link">Anterior</span></li>
+      {% endif %}
+
+      {% for p in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+        {% if p %}
+          {% if p == pagination.page %}
+            <li class="page-item active"><span class="page-link">{{ p }}</span></li>
+          {% else %}
+            <li class="page-item">
+              <a class="page-link" href="{{ url_for('pedidos.listar_pedidos', page=p, fecha=filtro_fecha, consecutivo=filtro_consecutivo) }}">{{ p }}</a>
+            </li>
+          {% endif %}
+        {% else %}
+          <li class="page-item disabled"><span class="page-link">…</span></li>
+        {% endif %}
+      {% endfor %}
+
+      {% if pagination.has_next %}
+      <li class="page-item">
+        <a class="page-link" href="{{ url_for('pedidos.listar_pedidos', page=pagination.next_num, fecha=filtro_fecha, consecutivo=filtro_consecutivo) }}">Siguiente</a>
+      </li>
+      {% else %}
+      <li class="page-item disabled"><span class="page-link">Siguiente</span></li>
+      {% endif %}
+    </ul>
+  </nav>
+  {% endif %}
 </div>
 {% endblock %}

@@ -48,14 +48,11 @@
           <td>{{ e.comentarios or '-' }}</td>
           <td>
             <div class="d-flex gap-2">
-              <!-- PDF accesible para todos -->
               <a href="{{ url_for('extras.export_pdf_extra', ext_id=e.id) }}"
                  class="btn btn-outline-secondary btn-sm"
                  title="Exportar PDF">
                 <i class="bi bi-file-earmark-pdf"></i>
               </a>
-
-              <!-- Editar y Eliminar solo para roles admin -->
               {% if current_user.rol == 'administrador' %}
               <a href="{{ url_for('extras.editar_extra', eid=e.id) }}"
                  class="btn btn-outline-primary btn-sm"
@@ -81,5 +78,42 @@
       </tbody>
     </table>
   </div>
+
+  <!-- Paginación -->
+  {% if pagination %}
+  <nav aria-label="Paginación de extras">
+    <ul class="pagination justify-content-center">
+      {% if pagination.has_prev %}
+      <li class="page-item">
+        <a class="page-link" href="{{ url_for('extras.listar_extras', page=pagination.prev_num, fecha=filtro_fecha, consecutivo=filtro_consecutivo) }}">Anterior</a>
+      </li>
+      {% else %}
+      <li class="page-item disabled"><span class="page-link">Anterior</span></li>
+      {% endif %}
+
+      {% for p in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+        {% if p %}
+          {% if p == pagination.page %}
+            <li class="page-item active"><span class="page-link">{{ p }}</span></li>
+          {% else %}
+            <li class="page-item">
+              <a class="page-link" href="{{ url_for('extras.listar_extras', page=p, fecha=filtro_fecha, consecutivo=filtro_consecutivo) }}">{{ p }}</a>
+            </li>
+          {% endif %}
+        {% else %}
+          <li class="page-item disabled"><span class="page-link">…</span></li>
+        {% endif %}
+      {% endfor %}
+
+      {% if pagination.has_next %}
+      <li class="page-item">
+        <a class="page-link" href="{{ url_for('extras.listar_extras', page=pagination.next_num, fecha=filtro_fecha, consecutivo=filtro_consecutivo) }}">Siguiente</a>
+      </li>
+      {% else %}
+      <li class="page-item disabled"><span class="page-link">Siguiente</span></li>
+      {% endif %}
+    </ul>
+  </nav>
+  {% endif %}
 </div>
 {% endblock %}

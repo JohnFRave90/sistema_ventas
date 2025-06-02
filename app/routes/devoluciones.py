@@ -178,25 +178,27 @@ def editar_devolucion(did):
 @devoluciones_bp.route('/listar', methods=['GET'])
 @login_required
 def listar_devoluciones():
-    filtro_fecha      = request.args.get('fecha','').strip()
-    filtro_consecutivo= request.args.get('consecutivo','').strip()
+    filtro_fecha       = request.args.get('fecha', '').strip()
+    filtro_consecutivo = request.args.get('consecutivo', '').strip()
+    page               = request.args.get('page', 1, type=int)
 
     q = BDDevolucion.query
     if current_user.rol == 'vendedor':
-        q = q.filter_by(codigo_vendedor=current_user.codigo_vendedor)  # ← corregido aquí
+        q = q.filter_by(codigo_vendedor=current_user.codigo_vendedor)
 
     if filtro_fecha:
         try:
-            d = datetime.strptime(filtro_fecha,'%Y-%m-%d').date()
+            d = datetime.strptime(filtro_fecha, '%Y-%m-%d').date()
             q = q.filter(BDDevolucion.fecha == d)
         except ValueError:
-            flash("Formato de fecha inválido.","warning")
+            flash("Formato de fecha inválido.", "warning")
 
     if filtro_consecutivo:
         q = q.filter(BDDevolucion.consecutivo.ilike(f"%{filtro_consecutivo}%"))
 
-    devoluciones = q.order_by(BDDevolucion.fecha.desc()).all()
-    for d in devoluciones:
+    paginacion = q.order_by(BDDevolucion.fecha.desc()).paginate(page=page, per_page=30)
+
+    for d in paginacion.items:
         d.total = sum(item.subtotal for item in d.items)
 
     vendedores_map = {
@@ -206,7 +208,8 @@ def listar_devoluciones():
 
     return render_template(
         'devoluciones/listar.html',
-        devoluciones=devoluciones,
+        devoluciones=paginacion.items,
+        pagination=paginacion,
         vendedores=vendedores_map,
         filtro_fecha=filtro_fecha,
         filtro_consecutivo=filtro_consecutivo

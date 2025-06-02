@@ -101,7 +101,7 @@ def crear_liquidacion():
 def generar_codigo_liquidacion():
     last = BD_LIQUIDACION.query.order_by(BD_LIQUIDACION.id.desc()).first()
     next_id = 1 if not last else last.id + 1
-    return f"LQ-{str(next_id).zfill(4)}"
+    return f"LQ-{str(next_id).zfill(5)}"
 
 @liquidaciones_bp.route('/listar')
 @login_required
@@ -110,23 +110,34 @@ def listar_liquidaciones():
     query = BD_LIQUIDACION.query
 
     fecha_inicio = request.args.get('fecha_inicio')
-    fecha_fin = request.args.get('fecha_fin')
-    codigo = request.args.get('codigo')
+    fecha_fin    = request.args.get('fecha_fin')
+    codigo       = request.args.get('codigo', '').strip()
+    page         = request.args.get('page', 1, type=int)
 
     if fecha_inicio:
         query = query.filter(BD_LIQUIDACION.fecha >= fecha_inicio)
     if fecha_fin:
         query = query.filter(BD_LIQUIDACION.fecha <= fecha_fin)
     if codigo:
-        query = query.filter(BD_LIQUIDACION.codigo.like(f"%{codigo.strip()}%"))
+        query = query.filter(BD_LIQUIDACION.codigo.ilike(f"%{codigo}%"))
 
-    liquidaciones = query.order_by(BD_LIQUIDACION.fecha.desc(), BD_LIQUIDACION.id.desc()).all()
+    paginacion = query.order_by(
+        BD_LIQUIDACION.fecha.desc(),
+        BD_LIQUIDACION.id.desc()
+    ).paginate(page=page, per_page=30)
 
-    # Cargar vendedores para mostrar nombres
     vendedores = Vendedor.query.all()
     vendedores_dict = {v.codigo_vendedor: v for v in vendedores}
 
-    return render_template('liquidaciones/listar.html', liquidaciones=liquidaciones, vendedores_dict=vendedores_dict)
+    return render_template(
+        'liquidaciones/listar.html',
+        liquidaciones=paginacion.items,
+        pagination=paginacion,
+        vendedores_dict=vendedores_dict,
+        fecha_inicio=fecha_inicio,
+        fecha_fin=fecha_fin,
+        codigo=codigo
+    )
 
 @liquidaciones_bp.route('/editar/<int:id>', methods=['GET', 'POST'])
 @login_required

@@ -14,14 +14,26 @@ bp_canastas = Blueprint('canastas', __name__, template_folder='../templates')
 @login_required
 @rol_requerido('semiadmin', 'administrador')
 def vista_canastas():
-    canastas = Canasta.query.all()
-    return render_template('canastas/vista_principal.html', canastas=canastas)
+    # Número de página desde la URL, por defecto 1
+    page = request.args.get('page', 1, type=int)
+
+    # Obtener 50 canastas por página, ordenadas por fecha
+    paginacion = Canasta.query.order_by(Canasta.fecha_registro.desc()).paginate(page=page, per_page=50)
+
+    return render_template(
+        'canastas/vista_principal.html',
+        canastas=paginacion.items,
+        pagination=paginacion
+    )
 
 # Registro de canastas
 @bp_canastas.route('/canastas/registro', methods=['GET', 'POST'])
 @login_required
 @rol_requerido('semiadmin', 'administrador')
 def registrar_canasta():
+    from sqlalchemy import desc  # Para ordenar descendente
+
+    # Datos por defecto para el formulario
     datos_formulario = {
         'codigo_barras': '',
         'tamano': 'Estandar',
@@ -30,33 +42,45 @@ def registrar_canasta():
         'actualidad': 'Disponible'
     }
 
+    # Número de página actual desde los parámetros GET (por defecto 1)
+    page = request.args.get('page', 1, type=int)
+
+    # Si el formulario fue enviado (registro de nueva canasta)
     if request.method == 'POST':
         datos_formulario['codigo_barras'] = request.form['codigo_barras'].strip()
-        datos_formulario['tamano'] = request.form['tamano']
-        datos_formulario['color'] = request.form['color']
-        datos_formulario['estado'] = request.form['estado']
-        datos_formulario['actualidad'] = request.form['actualidad']
+        datos_formulario['tamano']        = request.form['tamano']
+        datos_formulario['color']         = request.form['color']
+        datos_formulario['estado']        = request.form['estado']
+        datos_formulario['actualidad']    = request.form['actualidad']
 
+        # Validación de duplicado
         existente = Canasta.query.filter_by(codigo_barras=datos_formulario['codigo_barras']).first()
         if existente:
             flash('Error: Ya existe una canasta con ese código de barras.', 'danger')
         else:
             nueva_canasta = Canasta(
-                codigo_barras=datos_formulario['codigo_barras'],
-                tamaño=datos_formulario['tamano'],
-                color=datos_formulario['color'],
-                estado=datos_formulario['estado'],
-                actualidad=datos_formulario['actualidad']
+                codigo_barras = datos_formulario['codigo_barras'],
+                tamaño         = datos_formulario['tamano'],
+                color          = datos_formulario['color'],
+                estado         = datos_formulario['estado'],
+                actualidad     = datos_formulario['actualidad']
             )
             db.session.add(nueva_canasta)
             db.session.commit()
             flash('Canasta registrada correctamente.', 'success')
 
-        canastas = Canasta.query.order_by(Canasta.fecha_registro.desc()).all()
-        return render_template('canastas/registro.html', canastas=canastas, **datos_formulario)
+        # Después de registrar, redirige a la misma página (evita reenvío de formulario)
+        return redirect(url_for('canastas.registrar_canasta'))
 
-    canastas = Canasta.query.order_by(Canasta.fecha_registro.desc()).all()
-    return render_template('canastas/registro.html', canastas=canastas, **datos_formulario)
+    # Obtener canastas paginadas (50 por página)
+    paginacion = Canasta.query.order_by(desc(Canasta.fecha_registro)).paginate(page=page, per_page=50)
+
+    return render_template(
+        'canastas/registro.html',
+        canastas=paginacion.items,
+        pagination=paginacion,
+        **datos_formulario
+    )
 
 # Exportar canastas a CSV
 @bp_canastas.route('/canastas/exportar_csv')

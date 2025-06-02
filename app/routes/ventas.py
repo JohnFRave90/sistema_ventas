@@ -203,12 +203,14 @@ def generar_venta():
 @ventas_bp.route('/listar', methods=['GET'])
 @login_required
 def listar_ventas():
-    filtro_fecha  = request.args.get('fecha','').strip()
-    filtro_cons   = request.args.get('consecutivo','').strip()
+    filtro_fecha  = request.args.get('fecha', '').strip()
+    filtro_cons   = request.args.get('consecutivo', '').strip()
+    page          = request.args.get('page', 1, type=int)
+
     q = BDVenta.query
 
     if current_user.rol == 'vendedor':
-        q = q.filter_by(codigo_vendedor=current_user.codigo_vendedor)  # ✅ corregido aquí
+        q = q.filter_by(codigo_vendedor=current_user.codigo_vendedor)
 
     if filtro_fecha:
         try:
@@ -220,7 +222,7 @@ def listar_ventas():
     if filtro_cons:
         q = q.filter(BDVenta.consecutivo.ilike(f"%{filtro_cons}%"))
 
-    ventas = q.order_by(BDVenta.fecha.desc()).all()
+    paginacion = q.order_by(BDVenta.fecha.desc()).paginate(page=page, per_page=30)
 
     vend_map = {
         v.codigo_vendedor: v.nombre
@@ -229,7 +231,8 @@ def listar_ventas():
 
     return render_template(
         'ventas/listar.html',
-        ventas=ventas,
+        ventas=paginacion.items,
+        pagination=paginacion,
         vendedores=vend_map,
         filtro_fecha=filtro_fecha,
         filtro_consecutivo=filtro_cons

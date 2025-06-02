@@ -112,37 +112,42 @@ def crear_pedido():
 @pedidos_bp.route('/listar', methods=['GET'])
 @login_required
 def listar_pedidos():
-    filtro_fecha      = request.args.get('fecha','').strip()
-    filtro_consecutivo= request.args.get('consecutivo','').strip()
+    filtro_fecha       = request.args.get('fecha', '').strip()
+    filtro_consecutivo = request.args.get('consecutivo', '').strip()
+    page               = request.args.get('page', 1, type=int)
 
     q = BDPedido.query
     if current_user.rol == 'vendedor':
-        q = q.filter_by(codigo_vendedor=current_user.codigo_vendedor)  # ← corregido aquí
+        q = q.filter_by(codigo_vendedor=current_user.codigo_vendedor)
+
     if filtro_fecha:
         try:
-            d = datetime.strptime(filtro_fecha,'%Y-%m-%d').date()
-            q = q.filter(BDPedido.fecha==d)
+            d = datetime.strptime(filtro_fecha, '%Y-%m-%d').date()
+            q = q.filter(BDPedido.fecha == d)
         except ValueError:
-            flash("Formato de fecha inválido.","warning")
+            flash("Formato de fecha inválido.", "warning")
+
     if filtro_consecutivo:
         q = q.filter(BDPedido.consecutivo.ilike(f"%{filtro_consecutivo}%"))
 
-    pedidos = q.order_by(BDPedido.fecha.desc()).all()
-    # calculo total de cada pedido
-    for p in pedidos:
+    paginacion = q.order_by(BDPedido.fecha.desc()).paginate(page=page, per_page=30)
+
+    # Calcular total de cada pedido en la página actual
+    for p in paginacion.items:
         p.total = sum(item.subtotal for item in p.items)
 
     vendedores_map = {
-      v.codigo_vendedor: v.nombre
-      for v in Vendedor.query.all()
+        v.codigo_vendedor: v.nombre
+        for v in Vendedor.query.all()
     }
 
     return render_template(
-      'pedidos/listar.html',
-      pedidos=pedidos,
-      vendedores=vendedores_map,
-      filtro_fecha=filtro_fecha,
-      filtro_consecutivo=filtro_consecutivo
+        'pedidos/listar.html',
+        pedidos=paginacion.items,
+        pagination=paginacion,
+        vendedores=vendedores_map,
+        filtro_fecha=filtro_fecha,
+        filtro_consecutivo=filtro_consecutivo
     )
 
 @pedidos_bp.route('/editar/<int:pid>', methods=['GET','POST'])
