@@ -24,8 +24,8 @@
       <div class="mb-3">
         <label class="form-label">Categoría</label>
         <select name="categoria" class="form-select" required>
-          <option value="panaderia" {% if producto.categoria == 'Panadería' %}selected{% endif %}>Panadería</option>
-          <option value="bizcocheria" {% if producto.categoria == 'Bizcochería' %}selected{% endif %}>Bizcochería</option>
+          <option value="panaderia" {% if producto.categoria == 'panadería' %}selected{% endif %}>Panadería</option>
+          <option value="bizcocheria" {% if producto.categoria == 'bizcochería' %}selected{% endif %}>Bizcochería</option>
         </select>
       </div>
       <div class="form-check mb-3">
