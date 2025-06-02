@@ -103,9 +103,9 @@ def generar_venta():
         val = price.get(code, 0) * qty
 
         categoria = cats.get(code, '')
-        if categoria == 'panadería':
+        if categoria == 'panaderia':
             pct = (vend.comision_panaderia or 0) / 100
-        elif categoria == 'bizcochería':
+        elif categoria == 'bizcocheria':
             pct = (vend.comision_bizcocheria or 0) / 100
         else:
             pct = 0.0
