@@ -108,7 +108,7 @@ def generar_venta():
         elif categoria == 'bizcochería':
             pct = (vend.comision_bizcocheria or 0) / 100
         else:
-            pct = 0
+            pct = 0.0
 
         com = val * pct
         pan = val - com
