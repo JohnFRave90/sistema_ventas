@@ -49,10 +49,10 @@ def generate_pdf_document(modelo, vendedor, logo_path, tipo):
         'Meta', parent=styles['Normal'], fontSize=12, leading=11
     )
     cell_style = ParagraphStyle(
-        'Cell', parent=styles['Normal'], fontSize=8, leading=10
+        'Cell', parent=styles['Normal'], fontSize=6.5, leading=8
     )
     header_cell = ParagraphStyle(
-        'HeaderCell', parent=styles['Normal'], fontSize=10, leading=10,
+        'HeaderCell', parent=styles['Normal'], fontSize=8, leading=9,
         alignment=1, fontName='Helvetica-Bold'
     )
 
