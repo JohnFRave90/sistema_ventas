@@ -125,6 +125,8 @@ def generate_pdf_document(modelo, vendedor, logo_path, tipo):
             doc.width*0.15, doc.width*0.15, doc.width*0.15
         ]
         for it in modelo.items:
+            if it.cantidad == 0:
+                continue
             nombre = productos.get(it.producto_cod, it.producto_cod)
             cant = it.cantidad
             sub  = it.precio_unit * cant
