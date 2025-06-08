@@ -1,40 +1,50 @@
 # app/routes/dialogflow_webhook.py
 
 from flask import Blueprint, request, jsonify
-from app.models import BDPedido, Vendedor  # Ajusta los nombres según tus modelos
+from app.models import db, BDPedido, Vendedor  # Asegúrate que estos importen correctamente tus modelos
 from datetime import datetime
 
+# Crear blueprint para el webhook
 dialogflow_bp = Blueprint('dialogflow', __name__)
 
 @dialogflow_bp.route('/webhook', methods=['POST'])
 def webhook():
-    data = request.get_json()
+    try:
+        data = request.get_json()
+        intent = data['queryResult']['intent']['displayName']
+        parameters = data['queryResult'].get('parameters', {})
 
-    intent = data['queryResult']['intent']['displayName']
+        # Intento: RevisarPedido
+        if intent == 'RevisarPedido':
+            numero = parameters.get('numero_pedido')
 
-    if intent == 'RevisarPedido':
-        numero = data['queryResult']['parameters'].get('numero_pedido')
+            if not numero:
+                return jsonify({"fulfillmentText": "No entendí el número del pedido que quieres revisar."})
 
-        if not numero:
-            return jsonify({"fulfillmentText": "No me dijiste el número del pedido."})
+            # Generar código tipo PD-00018
+            codigo_pedido = f"PD-{int(numero):05d}"
 
-        # Convertir número a código tipo PD-00018
-        codigo = f"PD-{int(numero):05d}"
+            # Buscar el pedido por código
+            pedido = BDPedido.query.filter_by(codigo=codigo_pedido).first()
 
-        pedido = BDPedido.query.filter_by(codigo=codigo).first()
+            if not pedido:
+                return jsonify({"fulfillmentText": f"No encontré el pedido con código {codigo_pedido}."})
 
-        if not pedido:
-            return jsonify({"fulfillmentText": f"No encontré el pedido número {numero}."})
+            # Obtener información del vendedor
+            vendedor = Vendedor.query.get(pedido.codigo_vendedor)
+            nombre_vendedor = vendedor.nombre if vendedor else "no identificado"
 
-        vendedor = Vendedor.query.get(pedido.codigo_vendedor)
+            fecha_formateada = pedido.fecha.strftime('%d de %B de %Y')
+            valor_total = f"{pedido.total_venta:,.0f}".replace(",", ".")
 
-        texto = (
-            f"El pedido {pedido.codigo} es del vendedor {vendedor.nombre}, "
-            f"hecho el {pedido.fecha.strftime('%d de %B de %Y')} "
-            f"por un valor total de {pedido.total_venta} pesos."
-        )
+            texto = (
+                f"El pedido {pedido.codigo} es del vendedor {nombre_vendedor}, "
+                f"hecho el {fecha_formateada}, y tiene un valor total de {valor_total} pesos."
+            )
 
-        return jsonify({"fulfillmentText": texto})
+            return jsonify({"fulfillmentText": texto})
 
-    return jsonify({"fulfillmentText": "No entendí tu solicitud."})
+        return jsonify({"fulfillmentText": "No entendí tu intención."})
 
+    except Exception as e:
+        return jsonify({"fulfillmentText": f"Ocurrió un error al procesar la solicitud: {str(e)}"})
