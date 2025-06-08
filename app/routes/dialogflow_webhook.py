@@ -30,7 +30,8 @@ def webhook():
             if not pedido:
                 return jsonify({"fulfillmentText": f"No encontré el pedido con código {codigo_pedido}."})
             try:
-                vendedor = Vendedor.query.get(str(pedido.codigo_vendedor))
+                # Obtener el vendedor por codigo_vendedor (NO por id)
+                vendedor = Vendedor.query.filter_by(codigo_vendedor=pedido.codigo_vendedor).first()
                 nombre_vendedor = vendedor.nombre if vendedor else f"con código {pedido.codigo_vendedor}"
             except Exception:
                 nombre_vendedor = f"con código {pedido.codigo_vendedor}"
