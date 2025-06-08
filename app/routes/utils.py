@@ -7,7 +7,7 @@ class UserWrapper(UserMixin):
     def __init__(self, user, tipo):
         self.user = user
         self.tipo = tipo  # "usuario" o "vendedor"
-        self.id = f"{tipo}:{user.id}"  # Ejemplo: vendedor:5
+        self.id = f"{tipo}:{user.id}"  
 
     def get_id(self):
         return self.id
