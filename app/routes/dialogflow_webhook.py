@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from app import db  
+from app import db
 from app.models.pedidos import BDPedido
 from app.models.pedido_item import BDPedidoItem
 from app.models.vendedor import Vendedor
@@ -10,32 +10,21 @@ dialogflow_bp = Blueprint("dialogflow", __name__)
 @dialogflow_bp.route("/webhook", methods=["POST"])
 def webhook():
     try:
+        # Leer el JSON recibido desde Dialogflow
         req = request.get_json()
-        print("📥 Petición recibida:", req)
+        print("📥 JSON recibido:", req)
 
+        # Detectar nombre del intent
         intent = req.get("queryResult", {}).get("intent", {}).get("displayName", "")
-        
+        print("🎯 Intent detectado:", intent)
+
         if intent == "RevisarPedido":
             numero = req.get("queryResult", {}).get("parameters", {}).get("numero_pedido")
+            print("🔢 número_pedido recibido:", numero)
 
             if not numero:
-                return jsonify({
-                    "fulfillmentText": "Por favor, dime qué número de pedido quieres revisar.",
-                    "fulfillmentMessages": [
-                        {
-                            "text": {
-                                "text": ["Por favor, dime qué número de pedido quieres revisar."]
-                            }
-                        }
-                    ]
-                })
-
-            consecutivo = f"PD-{int(numero):05d}"
-
-            # Buscar el pedido
-            pedido = BDPedido.query.filter_by(consecutivo=consecutivo).first()
-            if not pedido:
-                mensaje = f"No encontré el pedido número {numero}."
+                mensaje = "Por favor, dime qué número de pedido quieres revisar."
+                print("⚠️ Falta número de pedido")
                 return jsonify({
                     "fulfillmentText": mensaje,
                     "fulfillmentMessages": [
@@ -43,15 +32,28 @@ def webhook():
                     ]
                 })
 
-            # Obtener vendedor
+            consecutivo = f"PD-{int(numero):05d}"
+            print("🔍 Buscando pedido con consecutivo:", consecutivo)
+
+            pedido = BDPedido.query.filter_by(consecutivo=consecutivo).first()
+            if not pedido:
+                mensaje = f"No encontré el pedido número {numero}."
+                print("❌ Pedido no encontrado:", consecutivo)
+                return jsonify({
+                    "fulfillmentText": mensaje,
+                    "fulfillmentMessages": [
+                        {"text": {"text": [mensaje]}}
+                    ]
+                })
+
             vendedor = Vendedor.query.filter_by(codigo_vendedor=pedido.codigo_vendedor).first()
             nombre_vendedor = vendedor.nombre if vendedor else f"con código {pedido.codigo_vendedor}"
+            print("🧾 Vendedor encontrado:", nombre_vendedor)
 
-            # Sumar subtotales
             items = BDPedidoItem.query.filter_by(pedido_id=pedido.id).all()
             total = sum([item.subtotal for item in items])
+            print("💰 Total calculado:", total)
 
-            # Fecha formateada
             fecha_formateada = pedido.fecha.strftime('%d de %B de %Y')
             valor_total = f"{total:,.0f}".replace(",", ".")
 
@@ -60,17 +62,16 @@ def webhook():
                 f"hecho el {fecha_formateada}, y tiene un valor total de {valor_total} pesos."
             )
 
-            respuesta = {
+            print("✅ Respuesta generada:", mensaje)
+
+            return jsonify({
                 "fulfillmentText": mensaje,
                 "fulfillmentMessages": [
                     {"text": {"text": [mensaje]}}
                 ]
-            }
+            })
 
-            print("✅ Respuesta enviada a Dialogflow:", respuesta)
-            return jsonify(respuesta)
-
-        # Si el intent no está manejado
+        print("❓ Intent no manejado:", intent)
         return jsonify({
             "fulfillmentText": "No entendí tu solicitud.",
             "fulfillmentMessages": [
@@ -80,10 +81,9 @@ def webhook():
 
     except Exception as e:
         print("❌ Error en webhook:", str(e))
-        mensaje = f"Ocurrió un error al procesar tu solicitud: {str(e)}"
         return jsonify({
-            "fulfillmentText": mensaje,
+            "fulfillmentText": f"Ocurrió un error al procesar tu solicitud: {str(e)}",
             "fulfillmentMessages": [
-                {"text": {"text": [mensaje]}}
+                {"text": {"text": [f"Ocurrió un error al procesar tu solicitud: {str(e)}"]}}
             ]
         })
