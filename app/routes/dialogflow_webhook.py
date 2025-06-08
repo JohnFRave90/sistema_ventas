@@ -29,9 +29,11 @@ def webhook():
 
             if not pedido:
                 return jsonify({"fulfillmentText": f"No encontré el pedido con código {codigo_pedido}."})
-
-            vendedor = Vendedor.query.get(pedido.codigo_vendedor)
-            nombre_vendedor = vendedor.nombre if vendedor else "no identificado"
+            try:
+                vendedor = Vendedor.query.get(str(pedido.codigo_vendedor))
+                nombre_vendedor = vendedor.nombre if vendedor else f"con código {pedido.codigo_vendedor}"
+            except Exception:
+                nombre_vendedor = f"con código {pedido.codigo_vendedor}"
 
             fecha_formateada = pedido.fecha.strftime('%d de %B de %Y')
 
