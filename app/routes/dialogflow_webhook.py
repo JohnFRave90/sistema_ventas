@@ -1,7 +1,5 @@
-# app/routes/dialogflow_webhook.py
-
 from flask import Blueprint, request, jsonify
-from app import db
+from app.extensions import db  # Asegúrate de importar desde donde defines SQLAlchemy
 from app.models.pedidos import BDPedido
 from app.models.pedido_item import BDPedidoItem
 from app.models.vendedor import Vendedor
@@ -13,42 +11,79 @@ dialogflow_bp = Blueprint("dialogflow", __name__)
 def webhook():
     try:
         req = request.get_json()
+        print("📥 Petición recibida:", req)
+
         intent = req.get("queryResult", {}).get("intent", {}).get("displayName", "")
         
         if intent == "RevisarPedido":
-            numero_pedido = req["queryResult"]["parameters"].get("numero_pedido")
-            if not numero_pedido:
-                return jsonify({"fulfillmentText": "Por favor dime qué número de pedido quieres revisar."})
+            numero = req.get("queryResult", {}).get("parameters", {}).get("numero_pedido")
 
-            consecutivo = f"PD-{int(numero_pedido):05d}"
+            if not numero:
+                return jsonify({
+                    "fulfillmentText": "Por favor, dime qué número de pedido quieres revisar.",
+                    "fulfillmentMessages": [
+                        {
+                            "text": {
+                                "text": ["Por favor, dime qué número de pedido quieres revisar."]
+                            }
+                        }
+                    ]
+                })
+
+            consecutivo = f"PD-{int(numero):05d}"
 
             # Buscar el pedido
             pedido = BDPedido.query.filter_by(consecutivo=consecutivo).first()
             if not pedido:
-                return jsonify({"fulfillmentText": f"No encontré ningún pedido con número {numero_pedido}."})
+                mensaje = f"No encontré el pedido número {numero}."
+                return jsonify({
+                    "fulfillmentText": mensaje,
+                    "fulfillmentMessages": [
+                        {"text": {"text": [mensaje]}}
+                    ]
+                })
 
-            # Buscar el nombre del vendedor por codigo_vendedor (no id)
+            # Obtener vendedor
             vendedor = Vendedor.query.filter_by(codigo_vendedor=pedido.codigo_vendedor).first()
             nombre_vendedor = vendedor.nombre if vendedor else f"con código {pedido.codigo_vendedor}"
 
-            # Calcular total de items
+            # Sumar subtotales
             items = BDPedidoItem.query.filter_by(pedido_id=pedido.id).all()
-            valor_total = sum(item.subtotal for item in items)
+            total = sum([item.subtotal for item in items])
 
-            # Formatear fecha
+            # Fecha formateada
             fecha_formateada = pedido.fecha.strftime('%d de %B de %Y')
+            valor_total = f"{total:,.0f}".replace(",", ".")
 
-            # Preparar respuesta
+            mensaje = (
+                f"El pedido {consecutivo} es del vendedor {nombre_vendedor}, "
+                f"hecho el {fecha_formateada}, y tiene un valor total de {valor_total} pesos."
+            )
+
             respuesta = {
-                "fulfillmentText": f"El pedido {consecutivo} es del vendedor {nombre_vendedor}, hecho el {fecha_formateada}, y tiene un valor total de {valor_total:,.0f} pesos."
+                "fulfillmentText": mensaje,
+                "fulfillmentMessages": [
+                    {"text": {"text": [mensaje]}}
+                ]
             }
 
-            print("➡️ Respuesta enviada a Dialogflow:", respuesta)
+            print("✅ Respuesta enviada a Dialogflow:", respuesta)
             return jsonify(respuesta)
 
-        # Intent no manejado
-        return jsonify({"fulfillmentText": "No entendí tu solicitud."})
+        # Si el intent no está manejado
+        return jsonify({
+            "fulfillmentText": "No entendí tu solicitud.",
+            "fulfillmentMessages": [
+                {"text": {"text": ["No entendí tu solicitud."]}}
+            ]
+        })
 
     except Exception as e:
-        print("❌ Error en webhook:", e)
-        return jsonify({"fulfillmentText": f"Ocurrió un error al procesar la solicitud: {str(e)}"})
+        print("❌ Error en webhook:", str(e))
+        mensaje = f"Ocurrió un error al procesar tu solicitud: {str(e)}"
+        return jsonify({
+            "fulfillmentText": mensaje,
+            "fulfillmentMessages": [
+                {"text": {"text": [mensaje]}}
+            ]
+        })
