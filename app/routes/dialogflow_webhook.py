@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from app.extensions import db  # Asegúrate de importar desde donde defines SQLAlchemy
+from app import db  
 from app.models.pedidos import BDPedido
 from app.models.pedido_item import BDPedidoItem
 from app.models.vendedor import Vendedor
