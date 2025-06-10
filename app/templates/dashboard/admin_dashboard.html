@@ -29,6 +29,16 @@
         <i class="bi bi-exclamation-triangle-fill fs-3 text-danger"></i>
         <h6 class="mt-2">Canastas Perdidas</h6>
         <h5>{{ canastas_perdidas_count }}</h5>
+          {% if canastas_perdidas_list %}
+            <details class="mt-2">
+              <summary>Ver detalles</summary>
+              <ul class="mt-2 text-start">
+                {% for c in canastas_perdidas_list %}
+                  <li><strong>{{ c.codigo_barras }}</strong> — {{ c.nombre_vendedor }} ({{ c.dias_prestada }} días)</li>
+                {% endfor %}
+              </ul>
+            </details>
+          {% endif %}        
       </div>
     </div>
   </div>

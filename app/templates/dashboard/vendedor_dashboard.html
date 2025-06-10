@@ -29,6 +29,25 @@
         <i class="bi bi-exclamation-triangle-fill fs-3 text-danger"></i>
         <h6 class="mt-2">Canastas Perdidas</h6>
         <h5>{{ canastas_perdidas_count }}</h5>
+          {% if canastas_perdidas_list %}
+            <details class="mt-2">
+              <summary>Ver mis canastas perdidas</summary>
+              <ul class="mt-2 text-start">
+                {% for c in canastas_perdidas_list %}
+                  <li><strong>{{ c.codigo_barras }}</strong> — {{ c.dias_prestada }} días</li>
+                {% endfor %}
+              </ul>
+            </details>
+          {% endif %}        
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4 mb-3">
+    <div class="card shadow-sm border-0 bg-light text-center">
+      <div class="card-body">
+        <i class="bi bi-basket2-fill fs-3 text-info"></i>
+        <h6 class="mt-2">Canastas Prestadas Actuales</h6>
+        <h5>{{ canastas_prestadas_count }}</h5>
       </div>
     </div>
   </div>
