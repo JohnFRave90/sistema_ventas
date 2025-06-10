@@ -188,7 +188,15 @@
     if (duplicado) {
       e.preventDefault();
       alert("Hay productos duplicados. Por favor, corrige antes de continuar.");
+      return;
+    }
+
+    // Nueva confirmación antes de enviar
+    const confirmado = confirm("¿Estás seguro de registrar este formulario?");
+    if (!confirmado) {
+      e.preventDefault();
     }
   });
+
 </script>
 {% endblock %}
