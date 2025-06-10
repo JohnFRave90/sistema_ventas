@@ -13,6 +13,7 @@ from flask import Blueprint, request, send_file, flash, redirect, url_for
 from sqlalchemy import case, literal
 import pandas as pd
 from openpyxl.utils.cell import get_column_letter
+from decimal import Decimal
 
 from app import db
 from app.models.pedidos import BDPedido
@@ -471,7 +472,6 @@ def export_extras_productos_excel():
 def devoluciones_por_producto():
     return render_template('reportes/devoluciones_por_producto.html')
 
-
 # Exportación a Excel de devoluciones por producto
 @reportes_bp.route('/devoluciones_por_producto/export', methods=['GET'])
 @login_required
@@ -541,5 +541,87 @@ def export_devoluciones_productos_excel():
     filename = f"DevolucionesPorProducto_{start}_a_{end}.xlsx"
     return send_file(output, as_attachment=True, download_name=filename,
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+# Formulario para ventas por producto
+@reportes_bp.route('/ventas_por_producto', methods=['GET'])
+@login_required
+@rol_requerido('administrador', 'semiadmin')
+def ventas_por_producto():
+    return render_template('reportes/ventas_por_producto.html')
+
+# Exportación a Excel de ventas por producto
+@reportes_bp.route('/ventas_por_producto/export', methods=['GET'])
+@login_required
+@rol_requerido('administrador', 'semiadmin')
+def export_ventas_producto_excel():
+    from io import BytesIO
+    from openpyxl.utils import get_column_letter
+    import pandas as pd
+
+    # Leer fechas
+    start = request.args.get('start', '').strip()
+    end = request.args.get('end', '').strip()
+
+    try:
+        start_date = datetime.strptime(start, '%Y-%m-%d').date()
+        end_date = datetime.strptime(end, '%Y-%m-%d').date()
+    except ValueError:
+        flash('Rango de fechas inválido.', 'warning')
+        return redirect(url_for('reportes.ventas_por_producto'))
+
+    # Extraer ventas en el rango
+    ventas = BDVenta.query.filter(
+        BDVenta.fecha >= start_date,
+        BDVenta.fecha <= end_date
+    ).all()
+
+    rows = []
+    for v in ventas:
+        vendedor = Vendedor.query.filter_by(codigo_vendedor=v.codigo_vendedor).first()
+        for item in v.items:
+            producto = Producto.query.filter_by(codigo=item.producto_cod).first()
+            comision_valor = item.comision or Decimal('0')
+            pagar_panaderia = item.pagar_pan or Decimal('0')
+
+            rows.append({
+                'Fecha': v.fecha,
+                'Año': v.fecha.year,
+                'Mes': v.fecha.month,
+                'Día': v.fecha.day,
+                'Día de semana': v.fecha.strftime('%A'),
+                'Código producto': item.producto_cod,
+                'Nombre producto': producto.nombre if producto else 'Desconocido',
+                'Cantidad': item.cantidad,
+                'Subtotal': float(item.subtotal),
+                'Valor comisión': float(item.comision),
+                'Pagar a la Panadería': float(item.pagar_pan),
+                'Código vendedor': v.codigo_vendedor,
+                'Nombre vendedor': vendedor.nombre if vendedor else 'Desconocido'
+            })
+
+    df = pd.DataFrame(rows)
+    if df.empty:
+        flash('No hay datos en ese rango.', 'info')
+        return redirect(url_for('reportes.ventas_por_producto'))
+
+    df['Fecha'] = pd.to_datetime(df['Fecha'])
+
+    # Exportar a Excel
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='VentasPorProducto')
+        ws = writer.sheets['VentasPorProducto']
+        for idx, col in enumerate(df.columns, start=1):
+            max_len = max(df[col].astype(str).map(len).max(), len(col))
+            ws.column_dimensions[get_column_letter(idx)].width = max_len + 2
+    output.seek(0)
+
+    filename = f"VentasPorProducto_{start}_a_{end}.xlsx"
+    return send_file(
+        output,
+        as_attachment=True,
+        download_name=filename,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
 
 

@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Ventas por Producto{% endblock %}
+{% block content %}
+
+<div class="container-fluid px-4 py-4">
+  <h4 class="mb-4 text-center">Informe de Ventas por Producto</h4>
+
+  <form method="get" action="{{ url_for('reportes.export_ventas_producto_excel') }}" class="row g-3 justify-content-center">
+    <div class="col-md-3">
+      <label for="start" class="form-label">Desde</label>
+      <input type="date" class="form-control" name="start" id="start" required>
+    </div>
+    <div class="col-md-3">
+      <label for="end" class="form-label">Hasta</label>
+      <input type="date" class="form-control" name="end" id="end" required>
+    </div>
+    <div class="col-md-3 align-self-end d-grid">
+      <button type="submit" class="btn btn-success">Exportar a Excel</button>
+    </div>
+  </form>
+</div>
+
+{% endblock %}

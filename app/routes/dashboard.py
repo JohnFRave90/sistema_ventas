@@ -128,14 +128,28 @@ def dashboard_admin():
         'nombre_vendedor': c.nombre_vendedor,
         'dias_prestada': (datetime.now().date() - c.fecha_prestamo.date()).days
     } for c in canastas_data]
+    
+    # Total del mes: pedidos + extras
+    total_mes_pedidos = (db.session.query(func.sum(BDPedidoItem.subtotal))
+                        .join(BDPedido, BDPedido.id == BDPedidoItem.pedido_id)
+                        .filter(BDPedido.fecha >= inicio_mes)
+                        .scalar() or 0)
 
+    total_mes_extras = (db.session.query(func.sum(BDExtraItem.subtotal))
+                        .join(BDExtra, BDExtra.id == BDExtraItem.extra_id)
+                        .filter(BDExtra.fecha >= inicio_mes)
+                        .scalar() or 0)
+
+    total_mes_pedidos_extras = total_mes_pedidos + total_mes_extras
+    
     return render_template("dashboard/admin_dashboard.html",
                            total_mes=total_mes,
                            total_dia=total_dia,
                            pedidos_dia_vendedores=pedidos_dia_vendedores,
                            pedidos_mes_vendedores=pedidos_mes_vendedores,
                            canastas_perdidas_count=canastas_perdidas_count,
-                           canastas_perdidas_list=canastas_perdidas_list)
+                           canastas_perdidas_list=canastas_perdidas_list,
+                           total_mes_pedidos_extras=total_mes_pedidos_extras)
  
 @dashboard_bp.route("/dashboard_semiadmin", methods=['GET'])
 @login_required
@@ -146,16 +160,15 @@ def dashboard_semiadmin():
 
     # Total acumulado del mes (de BDVenta)
     total_mes = (db.session.query(func.sum(BDVenta.total_venta))
-                .filter(BDVenta.fecha >= inicio_mes)
-                .scalar() or 0)
+                 .filter(BDVenta.fecha >= inicio_mes)
+                 .scalar() or 0)
 
-    # Total pedidos del día
+    # Total del día: pedidos y extras
     total_dia_pedidos = (db.session.query(func.sum(BDPedidoItem.subtotal))
                          .join(BDPedido, BDPedido.id == BDPedidoItem.pedido_id)
                          .filter(BDPedido.fecha == hoy)
                          .scalar() or 0)
 
-    # Total extras del día
     total_dia_extras = (db.session.query(func.sum(BDExtraItem.subtotal))
                         .join(BDExtra, BDExtra.id == BDExtraItem.extra_id)
                         .filter(BDExtra.fecha == hoy)
@@ -167,28 +180,24 @@ def dashboard_semiadmin():
     pedidos_dia_pedidos = (db.session.query(
                                 Vendedor.nombre,
                                 func.sum(BDPedidoItem.subtotal).label('valor_total'))
-                              .join(BDPedido, BDPedido.id == BDPedidoItem.pedido_id)
-                              .join(Vendedor, BDPedido.codigo_vendedor == Vendedor.codigo_vendedor)
-                              .filter(BDPedido.fecha == hoy)
-                              .group_by(Vendedor.nombre))
+                            .join(BDPedido, BDPedido.id == BDPedidoItem.pedido_id)
+                            .join(Vendedor, BDPedido.codigo_vendedor == Vendedor.codigo_vendedor)
+                            .filter(BDPedido.fecha == hoy)
+                            .group_by(Vendedor.nombre))
 
     pedidos_dia_extras = (db.session.query(
                                 Vendedor.nombre,
                                 func.sum(BDExtraItem.subtotal).label('valor_total'))
-                              .join(BDExtra, BDExtra.id == BDExtraItem.extra_id)
-                              .join(Vendedor, BDExtra.codigo_vendedor == Vendedor.codigo_vendedor)
-                              .filter(BDExtra.fecha == hoy)
-                              .group_by(Vendedor.nombre))
+                            .join(BDExtra, BDExtra.id == BDExtraItem.extra_id)
+                            .join(Vendedor, BDExtra.codigo_vendedor == Vendedor.codigo_vendedor)
+                            .filter(BDExtra.fecha == hoy)
+                            .group_by(Vendedor.nombre))
 
-    # Unir los dos conjuntos por nombre de vendedor
     pedidos_dia_vendedores = {}
     for nombre, valor in pedidos_dia_pedidos.all():
         pedidos_dia_vendedores[nombre] = valor
     for nombre, valor in pedidos_dia_extras.all():
-        if nombre in pedidos_dia_vendedores:
-            pedidos_dia_vendedores[nombre] += valor
-        else:
-            pedidos_dia_vendedores[nombre] = valor
+        pedidos_dia_vendedores[nombre] = pedidos_dia_vendedores.get(nombre, 0) + valor
 
     pedidos_dia_vendedores = list(pedidos_dia_vendedores.items())
 
@@ -196,32 +205,29 @@ def dashboard_semiadmin():
     pedidos_mes_pedidos = (db.session.query(
                                 Vendedor.nombre,
                                 func.sum(BDPedidoItem.subtotal).label('valor_total'))
-                              .join(BDPedido, BDPedido.id == BDPedidoItem.pedido_id)
-                              .join(Vendedor, BDPedido.codigo_vendedor == Vendedor.codigo_vendedor)
-                              .filter(BDPedido.fecha >= inicio_mes)
-                              .group_by(Vendedor.nombre))
+                            .join(BDPedido, BDPedido.id == BDPedidoItem.pedido_id)
+                            .join(Vendedor, BDPedido.codigo_vendedor == Vendedor.codigo_vendedor)
+                            .filter(BDPedido.fecha >= inicio_mes)
+                            .group_by(Vendedor.nombre))
 
     pedidos_mes_extras = (db.session.query(
                                 Vendedor.nombre,
                                 func.sum(BDExtraItem.subtotal).label('valor_total'))
-                              .join(BDExtra, BDExtra.id == BDExtraItem.extra_id)
-                              .join(Vendedor, BDExtra.codigo_vendedor == Vendedor.codigo_vendedor)
-                              .filter(BDExtra.fecha >= inicio_mes)
-                              .group_by(Vendedor.nombre))
+                            .join(BDExtra, BDExtra.id == BDExtraItem.extra_id)
+                            .join(Vendedor, BDExtra.codigo_vendedor == Vendedor.codigo_vendedor)
+                            .filter(BDExtra.fecha >= inicio_mes)
+                            .group_by(Vendedor.nombre))
 
     pedidos_mes_vendedores = {}
     for nombre, valor in pedidos_mes_pedidos.all():
         pedidos_mes_vendedores[nombre] = valor
     for nombre, valor in pedidos_mes_extras.all():
-        if nombre in pedidos_mes_vendedores:
-            pedidos_mes_vendedores[nombre] += valor
-        else:
-            pedidos_mes_vendedores[nombre] = valor
+        pedidos_mes_vendedores[nombre] = pedidos_mes_vendedores.get(nombre, 0) + valor
 
     pedidos_mes_vendedores = list(pedidos_mes_vendedores.items())
 
-    # Canastas Perdidas (prestadas hace más de 7 días)
-    limite_fecha = hoy - timedelta(days=7)
+    # Canastas Perdidas (prestadas hace 7 días o más)
+    limite_fecha = datetime.now() - timedelta(days=7)
 
     subq = (db.session.query(
                 MovimientoCanasta.codigo_barras,
@@ -231,19 +237,49 @@ def dashboard_semiadmin():
             .group_by(MovimientoCanasta.codigo_barras)
             .subquery())
 
-    canastas_perdidas_count = (db.session.query(func.count())
-                               .select_from(Canasta)
-                               .join(subq, Canasta.codigo_barras == subq.c.codigo_barras)
-                               .filter(Canasta.actualidad == 'Prestada')
-                               .filter(subq.c.fecha < limite_fecha)
-                               .scalar() or 0)
+    canastas_data = (db.session.query(
+                        Canasta.codigo_barras,
+                        subq.c.fecha.label('fecha_prestamo'),
+                        Vendedor.nombre.label('nombre_vendedor')
+                    )
+                    .join(subq, Canasta.codigo_barras == subq.c.codigo_barras)
+                    .join(MovimientoCanasta, (MovimientoCanasta.codigo_barras == Canasta.codigo_barras) &
+                                              (MovimientoCanasta.fecha_movimiento == subq.c.fecha))
+                    .join(Vendedor, MovimientoCanasta.codigo_vendedor == Vendedor.codigo_vendedor)
+                    .filter(Canasta.actualidad == 'Prestada')
+                    .filter(subq.c.fecha <= limite_fecha)
+                    .all())
 
+    canastas_perdidas_count = len(canastas_data)
+
+    canastas_perdidas_list = [{
+        'codigo_barras': c.codigo_barras,
+        'fecha_prestamo': c.fecha_prestamo,
+        'nombre_vendedor': c.nombre_vendedor,
+        'dias_prestada': (datetime.now().date() - c.fecha_prestamo.date()).days
+    } for c in canastas_data]
+    
+    # Total del mes: pedidos + extras
+    total_mes_pedidos = (db.session.query(func.sum(BDPedidoItem.subtotal))
+                        .join(BDPedido, BDPedido.id == BDPedidoItem.pedido_id)
+                        .filter(BDPedido.fecha >= inicio_mes)
+                        .scalar() or 0)
+
+    total_mes_extras = (db.session.query(func.sum(BDExtraItem.subtotal))
+                        .join(BDExtra, BDExtra.id == BDExtraItem.extra_id)
+                        .filter(BDExtra.fecha >= inicio_mes)
+                        .scalar() or 0)
+
+    total_mes_pedidos_extras = total_mes_pedidos + total_mes_extras
+    
     return render_template("dashboard/admin_dashboard.html",
                            total_mes=total_mes,
                            total_dia=total_dia,
                            pedidos_dia_vendedores=pedidos_dia_vendedores,
                            pedidos_mes_vendedores=pedidos_mes_vendedores,
-                           canastas_perdidas_count=canastas_perdidas_count)
+                           canastas_perdidas_count=canastas_perdidas_count,
+                           canastas_perdidas_list=canastas_perdidas_list,
+                           total_mes_pedidos_extras=total_mes_pedidos_extras)
 
 @dashboard_bp.route("/dashboard_vendedor", methods=['GET'])
 @login_required
