@@ -503,7 +503,6 @@ def export_extras_productos_excel():
     return send_file(output, as_attachment=True, download_name=filename,
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
-
 # Formulario de devoluciones por producto
 @reportes_bp.route('/devoluciones_por_producto', methods=['GET'])
 @login_required

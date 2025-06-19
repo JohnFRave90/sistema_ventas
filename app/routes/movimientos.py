@@ -12,8 +12,11 @@ bp_movimientos = Blueprint('movimientos', __name__, template_folder='../template
 
 @bp_movimientos.route('/movimientos', methods=['GET', 'POST'])
 @login_required
-@rol_requerido('semiadmin','administrador')
+@rol_requerido('semiadmin', 'administrador')
 def registrar_movimiento():
+    from sqlalchemy import func
+    from datetime import datetime
+
     if 'contador_registros' not in session:
         session['contador_registros'] = 0
 
@@ -33,8 +36,9 @@ def registrar_movimiento():
                 if not canasta:
                     flash('Canasta no encontrada.', 'danger')
                 else:
-                    # Validar movimientos anteriores
-                    ultima = MovimientoCanasta.query.filter_by(codigo_barras=codigo_barras).order_by(MovimientoCanasta.fecha_movimiento.desc()).first()
+                    ultima = MovimientoCanasta.query.filter_by(
+                        codigo_barras=codigo_barras
+                    ).order_by(MovimientoCanasta.fecha_movimiento.desc()).first()
 
                     if tipo == 'Entra' and not ultima:
                         flash('No se ha registrado ningún movimiento para esta canasta, no se puede devolver.', 'danger')
@@ -54,7 +58,7 @@ def registrar_movimiento():
                         )
                         db.session.add(nuevo_mov)
 
-                        # Actualizar actualidad de la canasta
+                        # Actualizar estado de la canasta
                         if tipo == 'Sale':
                             canasta.actualidad = 'Prestada'
                         elif tipo == 'Entra':
@@ -64,18 +68,14 @@ def registrar_movimiento():
 
                         flash('Movimiento registrado correctamente.', 'success')
 
-                        # Mantener datos en sesión
-                        if vendedor_nombre != session.get('vendedor_seleccionado') or tipo != session.get('tipo_seleccionado'):
-                            session['contador_registros'] = 0
-
+                        # Mantener selección en sesión
                         session['vendedor_seleccionado'] = vendedor_nombre
                         session['tipo_seleccionado'] = tipo
                         session['codigo_barras'] = ''
-                        session['contador_registros'] += 1
 
         return redirect(url_for('movimientos.registrar_movimiento'))
 
-    # Datos para GET
+    # === GET ===
     vendedores = Vendedor.query.order_by(Vendedor.nombre.asc()).all()
     movimientos = (db.session.query(MovimientoCanasta, Vendedor)
                    .join(Vendedor, MovimientoCanasta.codigo_vendedor == Vendedor.codigo_vendedor)
@@ -83,12 +83,31 @@ def registrar_movimiento():
                    .limit(100)
                    .all())
 
+    # === Contador diario de movimientos exitosos ===
+    hoy_inicio = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    hoy_fin    = datetime.now().replace(hour=23, minute=59, second=59, microsecond=999999)
+
+    vendedor_codigo = None
+    if session.get('vendedor_seleccionado'):
+        vendedor_obj = Vendedor.query.filter_by(nombre=session['vendedor_seleccionado']).first()
+        if vendedor_obj:
+            vendedor_codigo = vendedor_obj.codigo_vendedor
+
+    contador_valor = 0
+    if vendedor_codigo and session.get('tipo_seleccionado'):
+        tipo_sel = session['tipo_seleccionado']
+        contador_valor = (db.session.query(func.count(MovimientoCanasta.id))
+                          .filter(MovimientoCanasta.codigo_vendedor == vendedor_codigo,
+                                  MovimientoCanasta.tipo_movimiento == tipo_sel,
+                                  MovimientoCanasta.fecha_movimiento.between(hoy_inicio, hoy_fin))
+                          .scalar())
+
     return render_template('movimientos/registro.html',
                            vendedores=vendedores,
                            vendedor_seleccionado=session.get('vendedor_seleccionado', ''),
                            tipo_seleccionado=session.get('tipo_seleccionado', ''),
                            codigo_barras=session.get('codigo_barras', ''),
-                           contador_registros=session['contador_registros'],
+                           contador_registros=contador_valor,
                            movimientos=movimientos)
 
 @bp_movimientos.route('/informe_movimientos', methods=['GET'])
