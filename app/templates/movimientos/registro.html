@@ -4,19 +4,9 @@
 <div class="container mt-4">
     <h2>Registrar Movimiento de Canasta</h2>
 
-    {% if tipo_seleccionado == 'Sale' %}
-        <div class="alert alert-warning mb-4">
-            <strong>Prestadas hoy:</strong> {{ contador_registros }} canastas registradas exitosamente
-        </div>
-    {% elif tipo_seleccionado == 'Entra' %}
-        <div class="alert alert-info mb-4">
-            <strong>Devueltas hoy:</strong> {{ contador_registros }} canastas registradas exitosamente
-        </div>
-    {% else %}
-        <div class="alert alert-secondary mb-4">
-            Selecciona un vendedor y tipo de movimiento para comenzar el conteo.
-        </div>
-    {% endif %}
+    <div class="alert alert-success mb-4">
+        <strong>Registros exitosos:</strong> {{ contador_registros }}
+    </div>
 
     <form method="POST" autocomplete="off" class="mb-4">
         <div class="row">

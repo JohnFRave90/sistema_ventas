@@ -14,7 +14,6 @@ bp_movimientos = Blueprint('movimientos', __name__, template_folder='../template
 @login_required
 @rol_requerido('semiadmin', 'administrador')
 def registrar_movimiento():
-    from sqlalchemy import func
     from datetime import datetime
 
     if 'contador_registros' not in session:
@@ -40,16 +39,20 @@ def registrar_movimiento():
                         codigo_barras=codigo_barras
                     ).order_by(MovimientoCanasta.fecha_movimiento.desc()).first()
 
+                    error = None
                     if tipo == 'Entra' and not ultima:
-                        flash('No se ha registrado ningún movimiento para esta canasta, no se puede devolver.', 'danger')
+                        error = 'No se ha registrado ningún movimiento para esta canasta, no se puede devolver.'
                     elif ultima and tipo == 'Entra' and ultima.codigo_vendedor != vendedor.codigo_vendedor:
-                        flash('Esta canasta ha sido prestada a otro vendedor. No puedes devolverla.', 'danger')
+                        error = 'Esta canasta ha sido prestada a otro vendedor. No puedes devolverla.'
                     elif tipo == 'Sale' and canasta.actualidad == 'Prestada':
-                        flash('Esta canasta ya ha sido prestada.', 'danger')
+                        error = 'Esta canasta ya ha sido prestada.'
                     elif tipo == 'Entra' and canasta.actualidad == 'Disponible':
-                        flash('Esta canasta no ha sido prestada.', 'danger')
+                        error = 'Esta canasta no ha sido prestada.'
+
+                    if error:
+                        flash(error, 'danger')
                     else:
-                        # Registrar movimiento
+                        # Registrar movimiento exitoso
                         nuevo_mov = MovimientoCanasta(
                             codigo_vendedor=vendedor.codigo_vendedor,
                             tipo_movimiento=tipo,
@@ -68,7 +71,17 @@ def registrar_movimiento():
 
                         flash('Movimiento registrado correctamente.', 'success')
 
-                        # Mantener selección en sesión
+                        # Reiniciar contador si cambió vendedor o tipo
+                        if (
+                            vendedor_nombre != session.get('vendedor_seleccionado') or
+                            tipo != session.get('tipo_seleccionado')
+                        ):
+                            session['contador_registros'] = 0
+
+                        # Incrementar contador solo en caso de éxito
+                        session['contador_registros'] += 1
+
+                        # Mantener valores
                         session['vendedor_seleccionado'] = vendedor_nombre
                         session['tipo_seleccionado'] = tipo
                         session['codigo_barras'] = ''
@@ -83,31 +96,12 @@ def registrar_movimiento():
                    .limit(100)
                    .all())
 
-    # === Contador diario de movimientos exitosos ===
-    hoy_inicio = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-    hoy_fin    = datetime.now().replace(hour=23, minute=59, second=59, microsecond=999999)
-
-    vendedor_codigo = None
-    if session.get('vendedor_seleccionado'):
-        vendedor_obj = Vendedor.query.filter_by(nombre=session['vendedor_seleccionado']).first()
-        if vendedor_obj:
-            vendedor_codigo = vendedor_obj.codigo_vendedor
-
-    contador_valor = 0
-    if vendedor_codigo and session.get('tipo_seleccionado'):
-        tipo_sel = session['tipo_seleccionado']
-        contador_valor = (db.session.query(func.count(MovimientoCanasta.id))
-                          .filter(MovimientoCanasta.codigo_vendedor == vendedor_codigo,
-                                  MovimientoCanasta.tipo_movimiento == tipo_sel,
-                                  MovimientoCanasta.fecha_movimiento.between(hoy_inicio, hoy_fin))
-                          .scalar())
-
     return render_template('movimientos/registro.html',
                            vendedores=vendedores,
                            vendedor_seleccionado=session.get('vendedor_seleccionado', ''),
                            tipo_seleccionado=session.get('tipo_seleccionado', ''),
                            codigo_barras=session.get('codigo_barras', ''),
-                           contador_registros=contador_valor,
+                           contador_registros=session['contador_registros'],
                            movimientos=movimientos)
 
 @bp_movimientos.route('/informe_movimientos', methods=['GET'])
