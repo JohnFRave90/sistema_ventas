@@ -72,31 +72,19 @@ def pedidos_por_producto():
 # 2) Exportación a Excel de pedidos por producto
 @reportes_bp.route('/pedidos_por_producto/export', methods=['GET'])
 @login_required
-@rol_requerido('administrador', 'semiadmin')
+@rol_requerido('administrador','semiadmin')
 def export_pedidos_productos_excel():
-    from app.models.vendedor import Vendedor
-    from app.models.producto import Producto
-    from app.models.pedidos import BDPedido
-    from app.models.pedido_item import BDPedidoItem
-
     # 1) Leer y validar fechas
     start = request.args.get('start', '').strip()
-    end = request.args.get('end', '').strip()
+    end   = request.args.get('end',   '').strip()
     try:
         start_date = datetime.strptime(start, '%Y-%m-%d').date()
-        end_date = datetime.strptime(end, '%Y-%m-%d').date()
+        end_date   = datetime.strptime(end,   '%Y-%m-%d').date()
     except ValueError:
         flash('Rango de fechas inválido.', 'warning')
         return redirect(url_for('reportes.pedidos_por_producto'))
 
-    # 2) Cargar productos y generar mapas
-    productos = Producto.query.with_entities(
-        Producto.codigo, Producto.nombre, Producto.categoria
-    ).all()
-    nombres = {p.codigo: p.nombre for p in productos}
-    categorias = {p.codigo: (p.categoria or '').lower() for p in productos}
-
-    # 3) Recorrer pedidos y preparar filas
+    # 2) Recorrer pedidos en el rango y preparar filas
     rows = []
     pedidos = BDPedido.query.filter(
         BDPedido.fecha >= start_date,
@@ -106,46 +94,37 @@ def export_pedidos_productos_excel():
     for ped in pedidos:
         vend = Vendedor.query.filter_by(codigo_vendedor=ped.codigo_vendedor).first()
         for item in ped.items:
-            codigo_producto = item.producto_cod
-            nombre_producto = nombres.get(codigo_producto, 'Desconocido')
-            categoria = categorias.get(codigo_producto, '')
-
-            # Cálculo correcto de comisión según categoría
-            if categoria == 'panaderia':
-                pct = (vend.comision_panaderia or 0) / 100
-            elif categoria == 'bizcocheria':
-                pct = (vend.comision_bizcocheria or 0) / 100
-            else:
-                pct = 0.0
-
+            prod = Producto.query.filter_by(codigo=item.producto_cod).first()
+            cat = (prod.categoria or '').lower()
+            pct = ((vend.comision_panaderia if cat=='panadería' else vend.comision_bizcocheria) or 0)/100.0
             valor_total = float(item.subtotal)
-            valor_neto = valor_total * (1.0 - pct)
+            valor_neto  = valor_total * (1.0 - pct)
 
             rows.append({
-                'Fecha': ped.fecha,
-                'Año': ped.fecha.year,
-                'cod vendedor': ped.codigo_vendedor,
-                'nombre vendedor': vend.nombre,
-                'ruta': '',
-                'codigo producto': codigo_producto,
-                'nombre producto': nombre_producto,
-                'cantidad': item.cantidad,
-                'valor total': valor_total,
-                'valor neto (menos comisión)': valor_neto,
-                'lote': '',
-                'mes': ped.fecha.month,
-                'día': ped.fecha.day,
-                'nombre del día': ped.fecha.strftime('%A')
+                'Fecha':                        ped.fecha,
+                'Año':                          ped.fecha.year,
+                'cod vendedor':                 ped.codigo_vendedor,
+                'nombre vendedor':              vend.nombre,
+                'ruta':                         '',
+                'codigo producto':              item.producto_cod,
+                'nombre producto':              prod.nombre,
+                'cantidad':                     item.cantidad,
+                'valor total':                  valor_total,
+                'valor neto (menos comisión)':  valor_neto,
+                'lote':                         '',
+                'mes':                          ped.fecha.month,
+                'día':                          ped.fecha.day,
+                'nombre del día':               ped.fecha.strftime('%A')
             })
 
-    # 4) Crear DataFrame
+    # 3) Crear DataFrame
     df = pd.DataFrame(rows)
     if df.empty:
         flash('No hay datos en ese rango.', 'info')
         return redirect(url_for('reportes.pedidos_por_producto'))
     df['Fecha'] = pd.to_datetime(df['Fecha'])
 
-    # 5) Generar Excel
+    # 4) Generar Excel en memoria usando openpyxl
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df.to_excel(writer, index=False, sheet_name='PedidosPorProducto')
@@ -155,7 +134,7 @@ def export_pedidos_productos_excel():
             ws.column_dimensions[get_column_letter(idx)].width = max_len + 2
     output.seek(0)
 
-    # 6) Enviar archivo
+    # 5) Enviar al cliente
     filename = f"PedidosPorProducto_{start}_a_{end}.xlsx"
     return send_file(
         output,
@@ -419,7 +398,7 @@ def extras_por_producto():
 # Exportación a Excel de extras por producto
 @reportes_bp.route('/extra_por_producto/export', methods=['GET'])
 @login_required
-@rol_requerido('administrador', 'semiadmin')
+@rol_requerido('administrador','semiadmin')
 def export_extras_productos_excel():
     from app.models.extras import BDExtra
     from app.models.extra_item import BDExtraItem
@@ -427,20 +406,13 @@ def export_extras_productos_excel():
     from app.models.producto import Producto
 
     start = request.args.get('start', '').strip()
-    end = request.args.get('end', '').strip()
+    end   = request.args.get('end', '').strip()
     try:
         start_date = datetime.strptime(start, '%Y-%m-%d').date()
-        end_date = datetime.strptime(end, '%Y-%m-%d').date()
+        end_date   = datetime.strptime(end, '%Y-%m-%d').date()
     except ValueError:
         flash('Rango de fechas inválido.', 'warning')
         return redirect(url_for('reportes.extras_por_producto'))
-
-    # Cargar productos una vez y construir diccionarios
-    productos = Producto.query.with_entities(
-        Producto.codigo, Producto.nombre, Producto.categoria
-    ).all()
-    nombres = {p.codigo: p.nombre for p in productos}
-    categorias = {p.codigo: (p.categoria or '').lower() for p in productos}
 
     rows = []
     extras = BDExtra.query.filter(
@@ -451,43 +423,33 @@ def export_extras_productos_excel():
     for ex in extras:
         vend = Vendedor.query.filter_by(codigo_vendedor=ex.codigo_vendedor).first()
         for item in ex.items:
-            codigo_producto = item.producto_cod
-            nombre_producto = nombres.get(codigo_producto, 'Desconocido')
-            categoria = categorias.get(codigo_producto, '')
-
-            # Cálculo de porcentaje de comisión según categoría
-            if categoria == 'panaderia':
-                pct = (vend.comision_panaderia or 0) / 100
-            elif categoria == 'bizcocheria':
-                pct = (vend.comision_bizcocheria or 0) / 100
-            else:
-                pct = 0.0
-
+            prod = Producto.query.filter_by(codigo=item.producto_cod).first()
+            cat = (prod.categoria or '').lower()
+            pct = ((vend.comision_panaderia if cat=='panadería' else vend.comision_bizcocheria) or 0)/100.0
             valor_total = float(item.subtotal)
-            valor_neto = valor_total * (1.0 - pct)
+            valor_neto  = valor_total * (1.0 - pct)
 
             rows.append({
-                'Fecha': ex.fecha,
-                'Año': ex.fecha.year,
-                'cod vendedor': ex.codigo_vendedor,
-                'nombre vendedor': vend.nombre,
-                'ruta': '',
-                'codigo producto': codigo_producto,
-                'nombre producto': nombre_producto,
-                'cantidad': item.cantidad,
-                'valor total': valor_total,
-                'valor neto (menos comisión)': valor_neto,
-                'lote': '',
-                'mes': ex.fecha.month,
-                'día': ex.fecha.day,
-                'nombre del día': ex.fecha.strftime('%A')
+                'Fecha':                        ex.fecha,
+                'Año':                          ex.fecha.year,
+                'cod vendedor':                 ex.codigo_vendedor,
+                'nombre vendedor':              vend.nombre,
+                'ruta':                         '',
+                'codigo producto':              item.producto_cod,
+                'nombre producto':              prod.nombre,
+                'cantidad':                     item.cantidad,
+                'valor total':                  valor_total,
+                'valor neto (menos comisión)':  valor_neto,
+                'lote':                         '',
+                'mes':                          ex.fecha.month,
+                'día':                          ex.fecha.day,
+                'nombre del día':               ex.fecha.strftime('%A')
             })
 
     df = pd.DataFrame(rows)
     if df.empty:
         flash('No hay datos en ese rango.', 'info')
         return redirect(url_for('reportes.extras_por_producto'))
-
     df['Fecha'] = pd.to_datetime(df['Fecha'])
 
     output = BytesIO()
@@ -513,7 +475,7 @@ def devoluciones_por_producto():
 # Exportación a Excel de devoluciones por producto
 @reportes_bp.route('/devoluciones_por_producto/export', methods=['GET'])
 @login_required
-@rol_requerido('administrador', 'semiadmin')
+@rol_requerido('administrador','semiadmin')
 def export_devoluciones_productos_excel():
     from app.models.devoluciones import BDDevolucion
     from app.models.devolucion_item import BDDevolucionItem
@@ -521,20 +483,13 @@ def export_devoluciones_productos_excel():
     from app.models.producto import Producto
 
     start = request.args.get('start', '').strip()
-    end = request.args.get('end', '').strip()
+    end   = request.args.get('end', '').strip()
     try:
         start_date = datetime.strptime(start, '%Y-%m-%d').date()
-        end_date = datetime.strptime(end, '%Y-%m-%d').date()
+        end_date   = datetime.strptime(end, '%Y-%m-%d').date()
     except ValueError:
         flash('Rango de fechas inválido.', 'warning')
         return redirect(url_for('reportes.devoluciones_por_producto'))
-
-    # Cargar todos los productos una sola vez y crear diccionario de categorías
-    productos = Producto.query.with_entities(
-        Producto.codigo, Producto.nombre, Producto.categoria
-    ).all()
-    nombres = {p.codigo: p.nombre for p in productos}
-    categorias = {p.codigo: p.categoria.lower() for p in productos}
 
     rows = []
     devols = BDDevolucion.query.filter(
@@ -545,43 +500,33 @@ def export_devoluciones_productos_excel():
     for dev in devols:
         vend = Vendedor.query.filter_by(codigo_vendedor=dev.codigo_vendedor).first()
         for item in dev.items:
-            codigo_producto = item.producto_cod
-            nombre_producto = nombres.get(codigo_producto, 'Desconocido')
-            categoria = categorias.get(codigo_producto, '')
-
-            # Comisiones según categoría usando misma lógica de ventas
-            if categoria == 'panaderia':
-                pct = (vend.comision_panaderia or 0) / 100
-            elif categoria == 'bizcocheria':
-                pct = (vend.comision_bizcocheria or 0) / 100
-            else:
-                pct = 0.0
-
+            prod = Producto.query.filter_by(codigo=item.producto_cod).first()
+            cat = (prod.categoria or '').lower()
+            pct = ((vend.comision_panaderia if cat=='panadería' else vend.comision_bizcocheria) or 0)/100.0
             valor_total = float(item.subtotal)
-            valor_neto = valor_total * (1.0 - pct)
+            valor_neto  = valor_total * (1.0 - pct)
 
             rows.append({
-                'Fecha': dev.fecha,
-                'Año': dev.fecha.year,
-                'cod vendedor': dev.codigo_vendedor,
-                'nombre vendedor': vend.nombre,
-                'ruta': '',
-                'codigo producto': codigo_producto,
-                'nombre producto': nombre_producto,
-                'cantidad': item.cantidad,
-                'valor total': valor_total,
-                'valor neto (menos comisión)': valor_neto,
-                'lote': '',
-                'mes': dev.fecha.month,
-                'día': dev.fecha.day,
-                'nombre del día': dev.fecha.strftime('%A')
+                'Fecha':                        dev.fecha,
+                'Año':                          dev.fecha.year,
+                'cod vendedor':                 dev.codigo_vendedor,
+                'nombre vendedor':              vend.nombre,
+                'ruta':                         '',
+                'codigo producto':              item.producto_cod,
+                'nombre producto':              prod.nombre,
+                'cantidad':                     item.cantidad,
+                'valor total':                  valor_total,
+                'valor neto (menos comisión)':  valor_neto,
+                'lote':                         '',
+                'mes':                          dev.fecha.month,
+                'día':                          dev.fecha.day,
+                'nombre del día':               dev.fecha.strftime('%A')
             })
 
     df = pd.DataFrame(rows)
     if df.empty:
         flash('No hay datos en ese rango.', 'info')
         return redirect(url_for('reportes.devoluciones_por_producto'))
-
     df['Fecha'] = pd.to_datetime(df['Fecha'])
 
     output = BytesIO()

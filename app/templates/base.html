@@ -22,6 +22,7 @@
       text-decoration: none;
       box-shadow: none;
     }
+
     @media (min-width: 992px) {
       .sidebar-fixed {
         position: fixed;
@@ -140,14 +141,13 @@
   <script>
     setTimeout(() => document.querySelectorAll('.alert').forEach(a => a.classList.remove('show')), 15000);
     window.addEventListener('DOMContentLoaded', () => {
-      if (document.querySelector('.alert-danger')) {
+      if (document.querySelectorAll('.alert-danger').length) {
         new Audio("{{ url_for('static', filename='alert.mp3') }}").play();
-      } else if (document.querySelector('.alert-success')) {
-        new Audio("{{ url_for('static', filename='success.mp3') }}").play();
-      } else if (document.querySelector('.alert-info')) {
-        new Audio("{{ url_for('static', filename='info.mp3') }}").play();
       }
     });
   </script>
+
+  {% block scripts %}{% endblock %}
 </body>
 </html>
+

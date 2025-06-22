@@ -12,6 +12,7 @@ from app.models.vendedor    import Vendedor
 from app.utils.roles        import rol_requerido
 from app.utils.documentos   import generar_consecutivo
 from app.utils.notificaciones import notificar_accion
+from app.utils.productos import get_productos_ordenados
 
 pedidos_bp = Blueprint('pedidos', __name__, url_prefix='/pedidos')
 
