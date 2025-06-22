@@ -1,0 +1,82 @@
+services:
+
+  mysql:
+
+    image: mysql:8
+
+    container_name: sistema_mysql
+
+    restart: always
+
+    environment:
+
+      MYSQL_DATABASE: sistema_ventas
+
+      MYSQL_USER: incolpan
+
+      MYSQL_PASSWORD: Incolpan12624+
+
+      MYSQL_ROOT_PASSWORD: Incolpan12624+
+
+    volumes:
+
+      - mysql_data:/var/lib/mysql
+
+    ports:
+
+      - "3306:3306"
+
+
+  web:
+
+    build: .
+
+    container_name: sistema_web
+
+    ports:
+
+      - "5000:5000"
+
+    volumes:
+
+      - .:/app
+
+    env_file:
+
+      - .env
+
+    depends_on:
+
+      - mysql
+
+    restart: always
+
+
+  phpmyadmin:
+
+    image: phpmyadmin/phpmyadmin
+
+    container_name: phpmyadmin
+
+    restart: always
+
+    ports:
+
+      - "8080:80"
+
+    environment:
+
+      PMA_HOST: mysql
+
+      PMA_PORT: 3306
+
+      MYSQL_ROOT_PASSWORD: Incolpan12624+
+
+    depends_on:
+
+      - mysql
+
+
+volumes:
+
+  mysql_data:
