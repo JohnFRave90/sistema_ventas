@@ -22,7 +22,7 @@ class MovimientoCanasta(db.Model):
     __tablename__ = 'movimientos_canastas'
 
     id = db.Column(db.Integer, primary_key=True)
-    codigo_vendedor = db.Column(db.String(50), nullable=False, comment='Código del vendedor que realizó el movimiento')
+    codigo_vendedor = db.Column(db.String(25), db.ForeignKey('vendedores.codigo_vendedor'), nullable=False, comment='Código del vendedor que realizó el movimiento')
     tipo_movimiento = db.Column(db.String(20), nullable=False, comment='Entrada o Salida')
     codigo_barras = db.Column(db.String(100), db.ForeignKey('canastas.codigo_barras'), nullable=False, comment='Código de barras de la canasta')
     fecha_movimiento = db.Column(db.DateTime, nullable=False, server_default=db.func.now(), comment='Fecha del movimiento')

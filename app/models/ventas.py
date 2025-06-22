@@ -8,12 +8,8 @@ class BDVenta(db.Model):
 
     id                   = db.Column(db.Integer, primary_key=True)
     consecutivo          = db.Column(db.String(20), unique=True, nullable=False)
-    codigo_vendedor      = db.Column(
-                              db.String(20),
-                              db.ForeignKey('vendedores.codigo_vendedor'),
-                              nullable=False
-                           )
-
+    codigo_vendedor      = db.Column(db.String(25), db.ForeignKey('vendedores.codigo_vendedor'), nullable=False)
+     
     # Códigos originales de documentos
     codigo_dev_anterior  = db.Column(db.String(20), nullable=True)
     codigo_pedido        = db.Column(db.String(20), nullable=True)

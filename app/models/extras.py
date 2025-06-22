@@ -1,3 +1,5 @@
+# app/models/extras.py
+
 from app import db
 
 class BDExtra(db.Model):
@@ -5,11 +7,7 @@ class BDExtra(db.Model):
 
     id              = db.Column(db.Integer, primary_key=True)
     consecutivo     = db.Column(db.String(20), unique=True, nullable=False)
-    codigo_vendedor = db.Column(
-                         db.String(20),
-                         db.ForeignKey('vendedores.codigo_vendedor'),
-                         nullable=False
-                     )
+    codigo_vendedor = db.Column(db.String(25), db.ForeignKey('vendedores.codigo_vendedor'), nullable=False) # CORREGIDO
     fecha           = db.Column(db.Date, nullable=False)
     comentarios     = db.Column(db.Text, nullable=True)
     usado           = db.Column(db.Boolean, default=False, nullable=False)
