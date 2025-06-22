@@ -33,6 +33,18 @@
     <a href="{{ url_for('devoluciones.listar_devoluciones') }}" class="list-group-item list-group-item-action">Listar</a>
   </div>
 
+  <!-- Despachos -->
+  {% if current_user.rol in ['administrador','semiadmin'] %}
+  <a class="list-group-item list-group-item-action fw-bold" data-bs-toggle="collapse" href="#collapseDespachos">
+    <i class="bi bi-truck me-1"></i> Despachos
+  </a>
+  <div class="collapse ps-3" id="collapseDespachos">
+    <a href="{{ url_for('despachos.ingresar_codigo') }}" class="list-group-item list-group-item-action">Crear</a>
+    <a href="{{ url_for('despachos.listar_despachos') }}" class="list-group-item list-group-item-action">Listar</a>
+  </div>
+  {% endif %}
+
+
   <!-- Ventas -->
   <a class="list-group-item list-group-item-action fw-bold" data-bs-toggle="collapse" href="#collapseVentas">
     <i class="bi bi-currency-dollar me-1"></i> Ventas

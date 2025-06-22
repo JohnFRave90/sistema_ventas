@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Listado de Despachos{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-2 py-3">
+  <h4 class="mb-4 text-center">Listado de Despachos</h4>
+
+  {% if current_user.rol in ['administrador', 'semiadmin'] %}
+  <div class="d-flex justify-content-end mb-3">
+    <!-- Aquí puedes agregar un botón para crear un nuevo despacho si deseas -->
+  </div>
+  {% endif %}
+
+    <div class="d-flex justify-content-end mb-3">
+    <a href="{{ url_for('despachos.ingresar_codigo') }}" class="btn btn-success">
+        <i class="bi bi-plus-circle me-1"></i> Nuevo Despacho
+    </a>
+    </div>
+
+    <!-- Filtros -->
+  <form method="get" class="row g-2 mb-3">
+    <div class="col-12 col-sm-5">
+      <input type="date" name="fecha" class="form-control" value="{{ filtro_fecha or '' }}">
+    </div>
+    <div class="col-12 col-sm-5">
+      <input type="text" name="consecutivo" class="form-control" placeholder="Código de origen (PD- o EX-)" value="{{ filtro_consecutivo or '' }}">
+    </div>
+    <div class="col-12 col-sm-2 d-grid">
+      <button type="submit" class="btn btn-primary">Buscar</button>
+    </div>
+  </form>
+
+  <!-- Tabla -->
+  <div class="table-responsive">
+    <table class="table table-hover align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>Origen</th>
+          <th>Fecha</th>
+          <th>Vendedor</th>
+          <th>Total</th>
+          <th>Comentarios</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for d in despachos %}
+        <tr>
+          <td>{{ d.codigo_origen }}</td>
+          <td>{{ d.fecha.strftime('%Y-%m-%d') }}</td>
+          <td>{{ vendedores[d.vendedor_cod] }}</td>
+          <td><strong>$</strong>{{ "{:,.0f}".format(totales[d.id]) }}</td>
+          <td>{{ d.comentarios or '-' }}</td>
+          <td>
+            <div class="d-flex gap-2">
+              <a href="{{ url_for('despachos.export_pdf_despacho', did=d.id) }}" class="btn btn-outline-secondary btn-sm" title="Exportar PDF">
+                <i class="bi bi-file-earmark-pdf"></i>
+              </a>
+              {% if current_user.rol == 'administrador' %}
+              <a href="{{ url_for('despachos.editar_despacho', did=d.id) }}" class="btn btn-outline-primary btn-sm" title="Editar">
+                <i class="bi bi-pencil-square"></i>
+              </a>
+              <form action="{{ url_for('despachos.eliminar_despacho', did=d.id) }}" method="POST" onsubmit="return confirm('¿Eliminar este despacho?');">
+                <button type="submit" class="btn btn-outline-danger btn-sm" title="Eliminar">
+                  <i class="bi bi-trash3"></i>
+                </button>
+              </form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="6" class="text-center">No hay despachos registrados.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Paginación -->
+  {% if pagination %}
+  <nav aria-label="Paginación de despachos">
+    <ul class="pagination justify-content-center">
+      {% if pagination.has_prev %}
+      <li class="page-item">
+        <a class="page-link" href="{{ url_for('despachos.listar_despachos', page=pagination.prev_num, fecha=filtro_fecha, consecutivo=filtro_consecutivo) }}">Anterior</a>
+      </li>
+      {% else %}
+      <li class="page-item disabled"><span class="page-link">Anterior</span></li>
+      {% endif %}
+
+      {% for p in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+        {% if p %}
+          {% if p == pagination.page %}
+            <li class="page-item active"><span class="page-link">{{ p }}</span></li>
+          {% else %}
+            <li class="page-item">
+              <a class="page-link" href="{{ url_for('despachos.listar_despachos', page=p, fecha=filtro_fecha, consecutivo=filtro_consecutivo) }}">{{ p }}</a>
+            </li>
+          {% endif %}
+        {% else %}
+          <li class="page-item disabled"><span class="page-link">…</span></li>
+        {% endif %}
+      {% endfor %}
+
+      {% if pagination.has_next %}
+      <li class="page-item">
+        <a class="page-link" href="{{ url_for('despachos.listar_despachos', page=pagination.next_num, fecha=filtro_fecha, consecutivo=filtro_consecutivo) }}">Siguiente</a>
+      </li>
+      {% else %}
+      <li class="page-item disabled"><span class="page-link">Siguiente</span></li>
+      {% endif %}
+    </ul>
+  </nav>
+  {% endif %}
+</div>
+{% endblock %}

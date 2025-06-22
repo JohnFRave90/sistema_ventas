@@ -307,3 +307,81 @@ def generate_liquidacion_pdf(liquidacion, vendedor, venta, cambio):
     buffer.seek(0)
     return buffer
 
+def generate_pdf_despacho(despacho, vendedor, tipo="pedido"):
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=MEDIA_CARTA, rightMargin=25, leftMargin=25, topMargin=20, bottomMargin=20)
+    elements = []
+    styles = getSampleStyleSheet()
+
+    # Título
+    title_style = styles['Title']
+    title_style.alignment = 1  # Centrado
+
+    label_doc = {
+        "pedido": "ORDEN DE PEDIDO",
+        "extra": "ORDEN DE EXTRA"
+    }
+
+    title = Paragraph(label_doc.get(tipo, "ORDEN DE DESPACHO"), title_style)
+    elements.append(title)
+    elements.append(Spacer(1, 10))
+
+    # Datos generales
+    vendedor_nombre = vendedor.nombre if vendedor else despacho.vendedor_cod
+    info_data = [
+        [f"Código origen: {despacho.codigo_origen}", f"Fecha: {despacho.fecha.strftime('%Y-%m-%d')}"],
+        [f"Vendedor: {vendedor_nombre}", f"Comentarios: {despacho.comentarios or '-'}"]
+    ]
+    info_table = Table(info_data, colWidths=[200, 200])
+    info_table.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+    ]))
+    elements.append(info_table)
+    elements.append(Spacer(1, 10))
+
+    # Tabla de productos
+    data = [["Código", "Producto", "Pedido", "Desp.", "Lote", "Subtotal"]]
+    total = 0
+
+    for item in despacho.items:
+        producto_obj = Producto.query.filter_by(codigo=item.producto_cod).first()
+        nombre_prod = producto_obj.nombre if producto_obj else item.producto_cod
+        subtotal = float(item.subtotal or 0)
+        total += subtotal
+        data.append([
+            item.producto_cod,
+            nombre_prod,
+            str(item.cantidad_pedida),
+            str(item.cantidad_despachada),
+            item.lote or "-",
+            f"${subtotal:,.0f}"
+        ])
+
+    table = Table(data, colWidths=[40, 145, 35, 35, 35, 65])
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#eeeeee")),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
+        ('ALIGN', (2, 1), (-1, -1), 'CENTER'),
+        ('ALIGN', (1, 1), (1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, -1), 8),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 5),
+        ('GRID', (0, 0), (-1, -1), 0.25, colors.grey),
+    ]))
+    elements.append(table)
+    elements.append(Spacer(1, 10))
+
+    # Total
+    total_paragraph = Paragraph(
+        f"<b>Total del despacho: ${total:,.0f}</b>",
+        styles["Heading4"]
+    )
+    elements.append(total_paragraph)
+
+    # Construir PDF
+    doc.build(elements)
+    pdf = buffer.getvalue()
+    buffer.close()
+    return pdf

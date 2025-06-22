@@ -17,17 +17,19 @@ from app.models.vendedor     import Vendedor
 from app.utils.roles         import rol_requerido
 from app.utils.documentos    import generar_consecutivo
 from app.utils.notificaciones import notificar_accion
+from app.models.despachos    import BDDespacho, BDDespachoItem
 
 ventas_bp = Blueprint('ventas', __name__, url_prefix='/ventas')
 
-@ventas_bp.route('/generar', methods=['GET','POST'])
+@ventas_bp.route('/generar', methods=['GET', 'POST'])
 @login_required
-@rol_requerido('semiadmin','administrador')
+@rol_requerido('semiadmin', 'administrador')
 def generar_venta():
     from app.utils.notificaciones import notificar_accion
 
-    hoy_iso   = date.today().isoformat()
+    hoy_iso = date.today().isoformat()
     fecha_val = request.values.get('fecha', hoy_iso)
+
     try:
         fecha_obj = datetime.strptime(fecha_val, '%Y-%m-%d').date()
     except:
@@ -42,12 +44,15 @@ def generar_venta():
         vendedores_list = None
         selected_v = current_user.user.codigo_vendedor
 
-    pedidos = BDPedido.query.filter_by(
-        codigo_vendedor=selected_v, fecha=fecha_obj, usado=False
+    # Obtener pedidos y extras desde despachos
+    pedidos = BDDespacho.query.filter_by(
+        vendedor_cod=selected_v, fecha=fecha_obj, tipo_origen='pedido'
     ).all()
-    extras = BDExtra.query.filter_by(
-        codigo_vendedor=selected_v, fecha=fecha_obj, usado=False
+
+    extras = BDDespacho.query.filter_by(
+        vendedor_cod=selected_v, fecha=fecha_obj, tipo_origen='extra'
     ).all()
+
     devols = BDDevolucion.query.filter(
         BDDevolucion.codigo_vendedor == selected_v,
         BDDevolucion.usos < 2
@@ -67,21 +72,24 @@ def generar_venta():
         return q.first()
 
     d_ant = fetch(BDDevolucion, c_dev_ant, False)
-    ped   = fetch(BDPedido,     c_ped,     True)
-    ext   = fetch(BDExtra,      c_ext,     True)
     d_dia = fetch(BDDevolucion, c_dev_d,   False)
+
+    ped = BDDespacho.query.filter_by(codigo_origen=c_ped, vendedor_cod=selected_v).first()
+    ext = BDDespacho.query.filter_by(codigo_origen=c_ext, vendedor_cod=selected_v).first()
 
     prods = Producto.query.with_entities(
         Producto.codigo, Producto.precio,
         Producto.nombre, Producto.categoria
     ).all()
-    price = {p.codigo: p.precio     for p in prods}
-    names = {p.codigo: p.nombre     for p in prods}
+
+    price = {p.codigo: p.precio for p in prods}
+    names = {p.codigo: p.nombre for p in prods}
     cats  = {p.codigo: p.categoria for p in prods}
     vend  = Vendedor.query.filter_by(codigo_vendedor=selected_v).first()
 
     breakdown = []
     temp = {}
+
     for doc, key in [
         (d_ant, 'dev_ant'),
         (ped,   'pedido'),
@@ -91,7 +99,7 @@ def generar_venta():
         if doc:
             for item in doc.items:
                 code = item.producto_cod
-                qty  = item.cantidad
+                qty = item.cantidad  
                 temp.setdefault(code, {
                     'dev_ant': 0, 'pedido': 0,
                     'extra':   0, 'dev_dia': 0
@@ -114,20 +122,20 @@ def generar_venta():
         pan = val - com
 
         breakdown.append({
-            'codigo':    code,
-            'nombre':    names.get(code, code),
-            'dev_ant':   vals['dev_ant'],
-            'pedido':    vals['pedido'],
-            'extra':     vals['extra'],
-            'dev_dia':   vals['dev_dia'],
-            'total':     qty,
-            'valor':     val,
-            'comision':  com,
+            'codigo': code,
+            'nombre': names.get(code, code),
+            'dev_ant': vals['dev_ant'],
+            'pedido': vals['pedido'],
+            'extra': vals['extra'],
+            'dev_dia': vals['dev_dia'],
+            'total': qty,
+            'valor': val,
+            'comision': com,
             'pagar_pan': pan
         })
 
-    tot_val = sum(i['valor']     for i in breakdown)
-    tot_com = sum(i['comision']  for i in breakdown)
+    tot_val = sum(i['valor'] for i in breakdown)
+    tot_com = sum(i['comision'] for i in breakdown)
     tot_pan = sum(i['pagar_pan'] for i in breakdown)
 
     if request.method == 'POST' and 'confirm' in request.form:
@@ -153,6 +161,7 @@ def generar_venta():
             comision            = tot_com,
             pagar_pan           = tot_pan
         )
+
         for line in breakdown:
             pu = price.get(line['codigo'], 0)
             venta.items.append(
@@ -167,8 +176,8 @@ def generar_venta():
             )
 
         db.session.add(venta)
-        if ped:   ped.usado   = True
-        if ext:   ext.usado   = True
+        if ped:   ped.usado = True
+        if ext:   ext.usado = True
         if d_ant: d_ant.usos += 1
         if d_dia: d_dia.usos += 1
         db.session.commit()
@@ -190,10 +199,10 @@ def generar_venta():
         pedidos_list      = pedidos,
         extras_list       = extras,
         devols_list       = devols,
-        code_dev_ant      = request.values.get('codigo_dev_anterior',''),
-        code_pedido       = request.values.get('codigo_pedido',''),
-        code_extra        = request.values.get('codigo_extra',''),
-        code_dev_dia      = request.values.get('codigo_dev_dia',''),
+        code_dev_ant      = c_dev_ant,
+        code_pedido       = c_ped,
+        code_extra        = c_ext,
+        code_dev_dia      = c_dev_d,
         breakdown         = breakdown,
         total_valor       = tot_val,
         total_comision    = tot_com,

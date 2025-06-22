@@ -57,6 +57,7 @@ def create_app():
     from app.routes.extras import extras_bp
     from app.routes.devoluciones import devoluciones_bp
     from app.routes.ventas import ventas_bp
+    from app.routes.despachos import despachos_bp
     from app.routes.reportes import reportes_bp
     from app.routes.festivos import festivos_bp
     from app.routes.liquidaciones import liquidaciones_bp
@@ -77,6 +78,7 @@ def create_app():
     app.register_blueprint(extras_bp)
     app.register_blueprint(devoluciones_bp)
     app.register_blueprint(ventas_bp)
+    app.register_blueprint(despachos_bp)
     app.register_blueprint(reportes_bp)
     app.register_blueprint(festivos_bp)
     app.register_blueprint(liquidaciones_bp)

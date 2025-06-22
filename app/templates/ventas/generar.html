@@ -1,12 +1,13 @@
 {% extends "base.html" %}
 {% block title %}Generar Venta{% endblock %}
+
 {% block content %}
 <div class="container-fluid px-2 py-3">
   <h4 class="mb-4 text-center">Generar Venta</h4>
   <div class="row justify-content-center">
     <div class="col-12 col-md-8">
 
-      {# ———— Formulario 1: Selección Fecha y Vendedor ———— #}
+      <!-- Formulario 1: Selección Fecha y Vendedor -->
       <form method="get" class="card p-3 shadow-sm bg-light mb-3">
         <div class="row gx-2 gy-2 small">
           <div class="col-6 col-md-4">
@@ -19,10 +20,7 @@
             <select name="vendedor" class="form-select form-select-sm" onchange="this.form.submit()" required>
               <option value="">---</option>
               {% for v in vendedores %}
-                <option value="{{ v.codigo_vendedor }}"
-                  {% if v.codigo_vendedor==selected_vendedor %}selected{% endif %}>
-                  {{ v.nombre }}
-                </option>
+              <option value="{{ v.codigo_vendedor }}" {% if v.codigo_vendedor == selected_vendedor %}selected{% endif %}>{{ v.nombre }}</option>
               {% endfor %}
             </select>
           </div>
@@ -30,11 +28,9 @@
         </div>
       </form>
 
-      {# ———— Formulario 2: Previsualizar (GET) ———— #}
-      <form action="{{ url_for('ventas.generar_venta') }}" method="get"
-            class="card p-3 shadow-sm bg-light mb-4">
-        {# ocultos indispensables para reconstruir el estado #}
-        <input type="hidden" name="fecha"  value="{{ fecha_val }}">
+      <!-- Formulario 2: Previsualizar -->
+      <form action="{{ url_for('ventas.generar_venta') }}" method="get" class="card p-3 shadow-sm bg-light mb-4">
+        <input type="hidden" name="fecha" value="{{ fecha_val }}">
         <input type="hidden" name="vendedor" value="{{ selected_vendedor }}">
         <div class="row gx-2 gy-2 small">
           <div class="col-6 col-md-3">
@@ -42,10 +38,7 @@
             <select name="codigo_dev_anterior" class="form-select form-select-sm">
               <option value="">---</option>
               {% for d in devols_list %}
-                <option value="{{ d.consecutivo }}"
-                  {% if d.consecutivo==code_dev_ant %}selected{% endif %}>
-                  {{ d.consecutivo }}
-                </option>
+              <option value="{{ d.consecutivo }}" {% if d.consecutivo == code_dev_ant %}selected{% endif %}>{{ d.consecutivo }}</option>
               {% endfor %}
             </select>
           </div>
@@ -54,10 +47,7 @@
             <select name="codigo_pedido" class="form-select form-select-sm">
               <option value="">---</option>
               {% for p in pedidos_list %}
-                <option value="{{ p.consecutivo }}"
-                  {% if p.consecutivo==code_pedido %}selected{% endif %}>
-                  {{ p.consecutivo }}
-                </option>
+              <option value="{{ p.codigo_origen }}" {% if p.codigo_origen == code_pedido %}selected{% endif %}>{{ p.codigo_origen }}</option>
               {% endfor %}
             </select>
           </div>
@@ -65,11 +55,8 @@
             <label class="form-label">Extra</label>
             <select name="codigo_extra" class="form-select form-select-sm">
               <option value="">---</option>
-              {% for ex in extras_list %}
-                <option value="{{ ex.consecutivo }}"
-                  {% if ex.consecutivo==code_extra %}selected{% endif %}>
-                  {{ ex.consecutivo }}
-                </option>
+              {% for e in extras_list %}
+              <option value="{{ e.codigo_origen }}" {% if e.codigo_origen == code_extra %}selected{% endif %}>{{ e.codigo_origen }}</option>
               {% endfor %}
             </select>
           </div>
@@ -78,10 +65,7 @@
             <select name="codigo_dev_dia" class="form-select form-select-sm">
               <option value="">---</option>
               {% for d in devols_list %}
-                <option value="{{ d.consecutivo }}"
-                  {% if d.consecutivo==code_dev_dia %}selected{% endif %}>
-                  {{ d.consecutivo }}
-                </option>
+              <option value="{{ d.consecutivo }}" {% if d.consecutivo == code_dev_dia %}selected{% endif %}>{{ d.consecutivo }}</option>
               {% endfor %}
             </select>
           </div>
@@ -91,29 +75,21 @@
         </div>
       </form>
 
-      {# ———— Formulario 3: Confirmar Venta (POST) ———— #}
-      <form action="{{ url_for('ventas.generar_venta') }}" method="post"
-            class="text-end mb-4">
-        {# oculta fecha y vendedor para POST #}
-        <input type="hidden" name="fecha"     value="{{ fecha_val }}">
-        <input type="hidden" name="vendedor"  value="{{ selected_vendedor }}">
+      <!-- Formulario 3: Confirmar Venta -->
+      <form action="{{ url_for('ventas.generar_venta') }}" method="post" class="text-end mb-4">
+        <input type="hidden" name="fecha" value="{{ fecha_val }}">
+        <input type="hidden" name="vendedor" value="{{ selected_vendedor }}">
         <input type="hidden" name="codigo_dev_anterior" value="{{ code_dev_ant }}">
-        <input type="hidden" name="codigo_pedido"        value="{{ code_pedido }}">
-        <input type="hidden" name="codigo_extra"         value="{{ code_extra }}">
-        <input type="hidden" name="codigo_dev_dia"       value="{{ code_dev_dia }}">
-        <button type="submit" name="confirm" class="btn btn-sm btn-primary">
-          Confirmar Venta
-        </button>
+        <input type="hidden" name="codigo_pedido" value="{{ code_pedido }}">
+        <input type="hidden" name="codigo_extra" value="{{ code_extra }}">
+        <input type="hidden" name="codigo_dev_dia" value="{{ code_dev_dia }}">
+        <button type="submit" name="confirm" class="btn btn-sm btn-primary">Confirmar Venta</button>
       </form>
 
-      {# ———— Tabla de Previsualización ———— #}
-      {# Tabla de previsualización #}
+      <!-- Tabla de Previsualización -->
       {% if breakdown %}
       <style>
-        .negativo {
-          color: red;
-          font-weight: bold;
-        }
+        .negativo { color: red; font-weight: bold; }
       </style>
       <div class="table-responsive">
         <table class="table table-sm table-bordered small">
@@ -125,7 +101,7 @@
             </tr>
           </thead>
           <tbody>
-          {% for item in breakdown %}
+            {% for item in breakdown %}
             <tr>
               <td>{{ item.codigo }}</td>
               <td>{{ item.nombre }}</td>
@@ -138,7 +114,7 @@
               <td class="text-end {% if item.comision < 0 %}text-danger fw-bold{% endif %}">{{ "{:,.0f}".format(item.comision) }}</td>
               <td class="text-end {% if item.pagar_pan < 0 %}text-danger fw-bold{% endif %}">{{ "{:,.0f}".format(item.pagar_pan) }}</td>
             </tr>
-          {% endfor %}
+            {% endfor %}
           </tbody>
           <tfoot class="table-light">
             <tr>
