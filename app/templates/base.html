@@ -47,7 +47,6 @@
 </head>
 <body class="bg-incolpan">
 
-  <!-- NAVBAR -->
   <nav class="navbar navbar-expand-lg navbar-incolpan navbar-dark shadow fixed-top">
     <div class="container-fluid">
       {% if current_user.is_authenticated and request.endpoint != 'auth.login' %}
@@ -87,7 +86,6 @@
   </nav>
 
   {% if current_user.is_authenticated and request.endpoint != 'auth.login' %}
-    <!-- SIDEBAR OFFCANVAS (móvil) -->
     <div class="offcanvas offcanvas-start d-lg-none" tabindex="-1" id="sidebarMobile"
          aria-labelledby="sidebarLabelMobile"
          style="top:56px; height:calc(100% - 56px); z-index: 1050;">
@@ -100,13 +98,11 @@
       </div>
     </div>
 
-    <!-- SIDEBAR FIJO (escritorio) -->
     <div class="d-none d-lg-block sidebar-fixed">
       {% include 'partials/sidebar_menu.html' %}
     </div>
   {% endif %}
 
-  <!-- ALERTAS FLASH -->
   <div id="flash-container" class="position-relative">
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% for category, message in messages %}
@@ -129,25 +125,46 @@
     {% endwith %}
   </div>
 
-  <!-- CONTENIDO PRINCIPAL -->
   <main class="{% if current_user.is_authenticated and request.endpoint != 'auth.login' %}content-with-sidebar{% endif %}">
     <div class="container mt-4">
       {% block content %}{% endblock %}
     </div>
   </main>
 
-  <!-- Bootstrap JS -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
   <script>
     setTimeout(() => document.querySelectorAll('.alert').forEach(a => a.classList.remove('show')), 15000);
     window.addEventListener('DOMContentLoaded', () => {
-      if (document.querySelectorAll('.alert-danger').length) {
+      if (document.querySelector('.alert-danger')) {
         new Audio("{{ url_for('static', filename='alert.mp3') }}").play();
+      } else if (document.querySelector('.alert-success')) {
+        new Audio("{{ url_for('static', filename='success.mp3') }}").play();
+      } else if (document.querySelector('.alert-info')) {
+        new Audio("{{ url_for('static', filename='info.mp3') }}").play();
       }
+    });
+  </script>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const socket = io();
+
+        socket.on('connect', () => {
+            console.log('Socket.IO conectado globalmente.');
+        });
+
+        // Escucha la orden para abrir una nueva página
+        socket.on('abrir_pagina', function(data) {
+            console.log('Orden recibida para abrir página:', data.url);
+            if (data.url) {
+                // Redirige el navegador a la URL recibida
+                window.location.href = data.url;
+            }
+        });
     });
   </script>
 
   {% block scripts %}{% endblock %}
+
 </body>
 </html>
-
