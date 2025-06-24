@@ -12,8 +12,10 @@ bp_movimientos = Blueprint('movimientos', __name__, template_folder='../template
 
 @bp_movimientos.route('/movimientos', methods=['GET', 'POST'])
 @login_required
-@rol_requerido('semiadmin','administrador')
+@rol_requerido('semiadmin', 'administrador')
 def registrar_movimiento():
+    from datetime import datetime
+
     if 'contador_registros' not in session:
         session['contador_registros'] = 0
 
@@ -33,19 +35,24 @@ def registrar_movimiento():
                 if not canasta:
                     flash('Canasta no encontrada.', 'danger')
                 else:
-                    # Validar movimientos anteriores
-                    ultima = MovimientoCanasta.query.filter_by(codigo_barras=codigo_barras).order_by(MovimientoCanasta.fecha_movimiento.desc()).first()
+                    ultima = MovimientoCanasta.query.filter_by(
+                        codigo_barras=codigo_barras
+                    ).order_by(MovimientoCanasta.fecha_movimiento.desc()).first()
 
+                    error = None
                     if tipo == 'Entra' and not ultima:
-                        flash('No se ha registrado ningún movimiento para esta canasta, no se puede devolver.', 'danger')
+                        error = 'No se ha registrado ningún movimiento para esta canasta, no se puede devolver.'
                     elif ultima and tipo == 'Entra' and ultima.codigo_vendedor != vendedor.codigo_vendedor:
-                        flash('Esta canasta ha sido prestada a otro vendedor. No puedes devolverla.', 'danger')
+                        error = 'Esta canasta ha sido prestada a otro vendedor. No puedes devolverla.'
                     elif tipo == 'Sale' and canasta.actualidad == 'Prestada':
-                        flash('Esta canasta ya ha sido prestada.', 'danger')
+                        error = 'Esta canasta ya ha sido prestada.'
                     elif tipo == 'Entra' and canasta.actualidad == 'Disponible':
-                        flash('Esta canasta no ha sido prestada.', 'danger')
+                        error = 'Esta canasta no ha sido prestada.'
+
+                    if error:
+                        flash(error, 'danger')
                     else:
-                        # Registrar movimiento
+                        # Registrar movimiento exitoso
                         nuevo_mov = MovimientoCanasta(
                             codigo_vendedor=vendedor.codigo_vendedor,
                             tipo_movimiento=tipo,
@@ -54,7 +61,7 @@ def registrar_movimiento():
                         )
                         db.session.add(nuevo_mov)
 
-                        # Actualizar actualidad de la canasta
+                        # Actualizar estado de la canasta
                         if tipo == 'Sale':
                             canasta.actualidad = 'Prestada'
                         elif tipo == 'Entra':
@@ -64,18 +71,24 @@ def registrar_movimiento():
 
                         flash('Movimiento registrado correctamente.', 'success')
 
-                        # Mantener datos en sesión
-                        if vendedor_nombre != session.get('vendedor_seleccionado') or tipo != session.get('tipo_seleccionado'):
+                        # Reiniciar contador si cambió vendedor o tipo
+                        if (
+                            vendedor_nombre != session.get('vendedor_seleccionado') or
+                            tipo != session.get('tipo_seleccionado')
+                        ):
                             session['contador_registros'] = 0
 
+                        # Incrementar contador solo en caso de éxito
+                        session['contador_registros'] += 1
+
+                        # Mantener valores
                         session['vendedor_seleccionado'] = vendedor_nombre
                         session['tipo_seleccionado'] = tipo
                         session['codigo_barras'] = ''
-                        session['contador_registros'] += 1
 
         return redirect(url_for('movimientos.registrar_movimiento'))
 
-    # Datos para GET
+    # === GET ===
     vendedores = Vendedor.query.order_by(Vendedor.nombre.asc()).all()
     movimientos = (db.session.query(MovimientoCanasta, Vendedor)
                    .join(Vendedor, MovimientoCanasta.codigo_vendedor == Vendedor.codigo_vendedor)
