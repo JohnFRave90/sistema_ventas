@@ -71,7 +71,7 @@ def editar_vendedor(id):
     return render_template('vendedores/editar.html', vendedor=vendedor)
 
 
-@vendedores_bp.route('/eliminar/<int:id>')
+@vendedores_bp.route('/eliminar/<int:id>', methods=['POST'])
 @login_required
 @rol_requerido('administrador')
 def eliminar_vendedor(id):

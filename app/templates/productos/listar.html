@@ -35,7 +35,9 @@
       <td>{% if p.activo %}Sí{% else %}No{% endif %}</td>
       <td>
         <a href="{{ url_for('productos.editar_producto', id=p.id) }}" class="btn btn-sm btn-warning">Editar</a>
-        <a href="{{ url_for('productos.eliminar_producto', id=p.id) }}" class="btn btn-sm btn-danger" onclick="return confirm('Confirmar eliminación');">Eliminar</a>
+        <form action="{{ url_for('productos.eliminar_producto', id=p.id) }}" method="post" style="display:inline;">
+          <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('¿Seguro quieres eliminar este producto?');">Eliminar</button>
+        </form>
       </td>
     </tr>
     {% endfor %}

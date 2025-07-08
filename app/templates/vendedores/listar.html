@@ -34,7 +34,9 @@
       <td>
         {% if current_user.rol == 'administrador' %}
           <a href="{{ url_for('vendedores.editar_vendedor', id=v.id) }}" class="btn btn-sm btn-warning">Editar</a>
-          <a href="{{ url_for('vendedores.eliminar_vendedor', id=v.id) }}" class="btn btn-sm btn-danger" onclick="return confirm('¿Seguro que deseas eliminar este vendedor?');">Eliminar</a>
+                    <form action="{{ url_for('vendedores.eliminar_vendedor', id=v.id) }}" method="post" style="display:inline;">
+            <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('¿Seguro que deseas eliminar este vendedor?');">Eliminar</button>
+          </form>
         {% else %}
           <span class="text-muted">-</span>
         {% endif %}

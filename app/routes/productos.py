@@ -51,7 +51,7 @@ def editar_producto(id):
     return render_template('productos/editar.html', producto=producto)
 
 # ELIMINAR PRODUCTO
-@productos_bp.route('/eliminar/<int:id>')
+@productos_bp.route('/eliminar/<int:id>', methods=['POST'])
 @rol_requerido('administrador')
 def eliminar_producto(id):
     producto = Producto.query.get_or_404(id)

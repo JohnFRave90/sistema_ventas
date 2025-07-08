@@ -78,7 +78,7 @@ def editar_usuario(id):
     return render_template('usuarios/editar.html', usuario=usuario)
 
 # ELIMINAR USUARIO
-@usuarios_bp.route('/eliminar/<int:id>')
+@usuarios_bp.route('/eliminar/<int:id>', methods=['POST'])
 @login_required
 @rol_requerido('administrador')
 def eliminar_usuario(id):
