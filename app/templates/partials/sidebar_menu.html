@@ -87,6 +87,7 @@
 
   {% if current_user.rol in ['administrador', 'semiadmin'] %}
     <a href="{{ url_for('reportes.panel') }}" class="list-group-item list-group-item-action">Resumen General</a>
+    <a href="{{ url_for('reportes.despachos_por_producto') }}" class="list-group-item list-group-item-action">Despachos x Producto</a>
     <a href="{{ url_for('reportes.pedidos_por_producto') }}" class="list-group-item list-group-item-action">Pedidos x Producto</a>
     <a href="{{ url_for('reportes.extras_por_producto') }}" class="list-group-item list-group-item-action">Extras x Producto</a>
     <a href="{{ url_for('reportes.devoluciones_por_producto') }}" class="list-group-item list-group-item-action">Devoluciones x Producto</a>

@@ -20,6 +20,7 @@ from app.models.pedidos import BDPedido
 from app.models.pedido_item import BDPedidoItem
 from app.models.vendedor import Vendedor
 from app.models.producto  import Producto
+from app.models.despachos import BDDespacho, BDDespachoItem
 
 reportes_bp = Blueprint('reportes', __name__, url_prefix='/reportes')
 
@@ -539,6 +540,78 @@ def export_devoluciones_productos_excel():
     output.seek(0)
 
     filename = f"DevolucionesPorProducto_{start}_a_{end}.xlsx"
+    return send_file(output, as_attachment=True, download_name=filename,
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+# Formulario de despachos por producto
+@reportes_bp.route('/despachos_por_producto', methods=['GET'])
+@login_required
+@rol_requerido('administrador','semiadmin')
+def despachos_por_producto():
+    return render_template('reportes/despachos_por_producto.html')
+
+# Exportación a Excel de despachos por producto
+@reportes_bp.route('/despachos_por_producto/export', methods=['GET'])
+@login_required
+@rol_requerido('administrador','semiadmin')
+def export_despachos_productos_excel():
+    start = request.args.get('start', '').strip()
+    end   = request.args.get('end', '').strip()
+    try:
+        start_date = datetime.strptime(start, '%Y-%m-%d').date()
+        end_date   = datetime.strptime(end, '%Y-%m-%d').date()
+    except ValueError:
+        flash('Rango de fechas inválido.', 'warning')
+        return redirect(url_for('reportes.despachos_por_producto'))
+
+    rows = []
+    despachos = BDDespacho.query.filter(
+        BDDespacho.fecha >= start_date,
+        BDDespacho.fecha <= end_date
+    ).all()
+
+    for des in despachos:
+        vend = Vendedor.query.filter_by(codigo_vendedor=des.vendedor_cod).first()
+        for item in des.items:
+            prod = Producto.query.filter_by(codigo=item.producto_cod).first()
+            cat = (prod.categoria or '').lower()
+            pct = ((vend.comision_panaderia if cat=='panadería' else vend.comision_bizcocheria) or 0)/100.0
+            valor_total = float(item.subtotal)
+            valor_neto  = valor_total * (1.0 - pct)
+
+            rows.append({
+                'Fecha':                        des.fecha,
+                'Año':                          des.fecha.year,
+                'cod vendedor':                 des.vendedor_cod,
+                'nombre vendedor':              vend.nombre,
+                'ruta':                         '',
+                'codigo producto':              item.producto_cod,
+                'nombre producto':              prod.nombre,
+                'cantidad':                     item.cantidad,
+                'valor total':                  valor_total,
+                'valor neto (menos comisión)':  valor_neto,
+                'lote':                         item.lote or '',
+                'mes':                          des.fecha.month,
+                'día':                          des.fecha.day,
+                'nombre del día':               des.fecha.strftime('%A')
+            })
+
+    df = pd.DataFrame(rows)
+    if df.empty:
+        flash('No hay datos en ese rango.', 'info')
+        return redirect(url_for('reportes.despachos_por_producto'))
+    df['Fecha'] = pd.to_datetime(df['Fecha'])
+
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='DespachosPorProducto')
+        ws = writer.sheets['DespachosPorProducto']
+        for idx, col in enumerate(df.columns, start=1):
+            max_len = max(df[col].astype(str).map(len).max(), len(col))
+            ws.column_dimensions[get_column_letter(idx)].width = max_len + 2
+    output.seek(0)
+
+    filename = f"DespachosPorProducto_{start}_a_{end}.xlsx"
     return send_file(output, as_attachment=True, download_name=filename,
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
