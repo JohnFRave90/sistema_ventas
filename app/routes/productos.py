@@ -13,8 +13,18 @@ productos_bp = Blueprint('productos', __name__, url_prefix='/productos')
 @productos_bp.route('/')
 @rol_requerido('administrador', 'semiadmin')
 def listar_productos():
-    productos = Producto.query.all()
-    return render_template('productos/listar.html', productos=productos)
+    """Lista los productos con la posibilidad de elegir el orden."""
+
+    orden = request.args.get('orden', 'personalizado')
+
+    if orden == 'nombre':
+        productos = Producto.query.order_by(Producto.nombre).all()
+    elif orden == 'codigo':
+        productos = Producto.query.order_by(Producto.codigo).all()
+    else:
+        productos = Producto.query.order_by(Producto.orden, Producto.nombre).all()
+
+    return render_template('productos/listar.html', productos=productos, orden_actual=orden)
 
 # CREAR PRODUCTO
 @productos_bp.route('/crear', methods=['GET', 'POST'])
@@ -26,7 +36,8 @@ def crear_producto():
         categoria = request.form['categoria']
         activo = 'activo' in request.form
 
-        nuevo = Producto(nombre=nombre, precio=precio, categoria=categoria, activo=activo)
+        max_orden = db.session.query(db.func.max(Producto.orden)).scalar() or 0
+        nuevo = Producto(nombre=nombre, precio=precio, categoria=categoria, activo=activo, orden=max_orden + 1)
         db.session.add(nuevo)
         db.session.commit()
         flash('Producto creado correctamente.', 'success')
@@ -75,7 +86,8 @@ def importar_productos():
         archivo.save(ruta_archivo)
 
         errores = []
-
+        max_orden = db.session.query(db.func.max(Producto.orden)).scalar() or 0
+        contador = 1
         with open(ruta_archivo, newline='', encoding='utf-8') as f:
             lector = csv.DictReader(f)
             lector.fieldnames[0] = lector.fieldnames[0].lstrip('\ufeff')
@@ -97,8 +109,10 @@ def importar_productos():
                             nombre=nombre,
                             precio=precio,
                             categoria=categoria,
-                            activo=True
+                            activo=True,
+                            orden=max_orden + contador
                         )
+                        contador += 1                        
                         db.session.add(nuevo)
                     else:
                         errores.append({
@@ -131,3 +145,20 @@ def importar_productos():
         return redirect(url_for('productos.listar_productos'))
 
     return render_template('productos/importar.html')
+
+
+# ----- ORDENAR PRODUCTOS -----
+@productos_bp.route('/actualizar_orden', methods=['POST'])
+@rol_requerido('administrador', 'semiadmin')
+def actualizar_orden_productos():
+    """Actualiza el orden de los productos desde el frontend via AJAX."""
+
+    orden_lista = request.get_json().get('orden', [])
+
+    for idx, prod_id in enumerate(orden_lista):
+        producto = Producto.query.get(int(prod_id))
+        if producto:
+            producto.orden = idx
+
+    db.session.commit()
+    return {'success': True}

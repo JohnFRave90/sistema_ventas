@@ -8,3 +8,4 @@ class Producto(db.Model):
     precio = db.Column(db.Float, nullable=False)
     categoria = db.Column(db.String(20), nullable=False)  # 'panadería' o 'bizcochería'
     activo = db.Column(db.Boolean, default=True, nullable=False)
+    orden = db.Column(db.Integer, default=0)

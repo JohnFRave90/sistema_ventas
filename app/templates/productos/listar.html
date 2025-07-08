@@ -5,13 +5,27 @@
 {% block content %}
 <h4 class="mb-4">Listado de productos</h4>
 
-<div class="d-flex justify-content-end mb-3">
-  <a href="{{ url_for('productos.importar_productos') }}" class="btn btn-secondary me-2">
-    <i class="bi bi-file-earmark-arrow-up"></i> Importar CSV
-  </a>
-  <a href="{{ url_for('productos.crear_producto') }}" class="btn btn-success">
-    <i class="bi bi-plus-circle"></i> Agregar Producto
-  </a>
+<div class="d-flex justify-content-between mb-3">
+  <div>
+    <form id="orden-form" class="d-inline">
+      <label for="orden-select" class="me-2">Ordenar por:</label>
+      <select id="orden-select" name="orden" class="form-select d-inline w-auto">
+        <option value="personalizado" {% if orden_actual=='personalizado' %}selected{% endif %}>Personalizado</option>
+        <option value="nombre" {% if orden_actual=='nombre' %}selected{% endif %}>Nombre</option>
+        <option value="codigo" {% if orden_actual=='codigo' %}selected{% endif %}>Código</option>
+      </select>
+    </form>
+    <button id="guardar-orden" class="btn btn-primary btn-sm ms-2 d-none">Guardar orden</button>
+  </div>
+
+  <div>
+    <a href="{{ url_for('productos.importar_productos') }}" class="btn btn-secondary me-2">
+      <i class="bi bi-file-earmark-arrow-up"></i> Importar CSV
+    </a>
+    <a href="{{ url_for('productos.crear_producto') }}" class="btn btn-success">
+      <i class="bi bi-plus-circle"></i> Agregar Producto
+    </a>
+  </div>
 </div>
 
 <table class="table table-bordered table-hover">
@@ -25,9 +39,9 @@
       <th>Acciones</th>
     </tr>
   </thead>
-  <tbody>
+  <tbody id="tabla-productos">
     {% for p in productos %}
-    <tr>
+    <tr data-id="{{ p.id }}">
       <td>{{ p.codigo }}</td>
       <td>{{ p.nombre }}</td>
       <td>${{ '%.0f'|format(p.precio) }}</td>
@@ -43,4 +57,50 @@
     {% endfor %}
   </tbody>
 </table>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+  <script>
+    const ordenSelect = document.getElementById('orden-select');
+    const tabla = document.getElementById('tabla-productos');
+    const guardarBtn = document.getElementById('guardar-orden');
+    let sortable = null;
+
+    function activarSortable() {
+      sortable = Sortable.create(tabla, { animation: 150 });
+    }
+
+    function desactivarSortable() {
+      if (sortable) { sortable.destroy(); sortable = null; }
+    }
+
+    ordenSelect.addEventListener('change', () => {
+      if (ordenSelect.value !== 'personalizado') {
+        desactivarSortable();
+        document.getElementById('orden-form').submit();
+      } else {
+        activarSortable();
+        guardarBtn.classList.remove('d-none');
+      }
+    });
+
+    guardarBtn.addEventListener('click', () => {
+      const orden = Array.from(tabla.querySelectorAll('tr')).map(tr => tr.dataset.id);
+      fetch('{{ url_for('productos.actualizar_orden_productos') }}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orden })
+      }).then(() => {
+        guardarBtn.classList.add('d-none');
+        desactivarSortable();
+      });
+    });
+
+    if (ordenSelect.value === 'personalizado') {
+      activarSortable();
+      guardarBtn.classList.remove('d-none');
+    }
+  </script>
 {% endblock %}
