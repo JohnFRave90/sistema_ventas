@@ -354,7 +354,7 @@ def generate_pdf_despacho(despacho, vendedor, tipo="pedido"):
             item.producto_cod,
             nombre_prod,
             str(item.cantidad_pedida),
-            str(item.cantidad_despachada),
+            str(item.cantidad),
             item.lote or "-",
             f"${subtotal:,.0f}"
         ])
