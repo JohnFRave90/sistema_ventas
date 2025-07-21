@@ -31,13 +31,14 @@ def listar_productos():
 @rol_requerido('administrador')
 def crear_producto():
     if request.method == 'POST':
+        codigo = request.form['codigo'].strip()
         nombre = request.form['nombre']
         precio = float(request.form['precio'])
         categoria = request.form['categoria']
         activo = 'activo' in request.form
 
         max_orden = db.session.query(db.func.max(Producto.orden)).scalar() or 0
-        nuevo = Producto(nombre=nombre, precio=precio, categoria=categoria, activo=activo, orden=max_orden + 1)
+        nuevo = Producto(codigo=codigo, nombre=nombre, precio=precio, categoria=categoria, activo=activo, orden=max_orden + 1)
         db.session.add(nuevo)
         db.session.commit()
         flash('Producto creado correctamente.', 'success')
