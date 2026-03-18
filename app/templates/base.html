@@ -141,8 +141,12 @@
   <script>
     setTimeout(() => document.querySelectorAll('.alert').forEach(a => a.classList.remove('show')), 15000);
     window.addEventListener('DOMContentLoaded', () => {
-      if (document.querySelectorAll('.alert-danger').length) {
+      if (document.querySelectorAll('.alert-success').length) {
+        new Audio("{{ url_for('static', filename='success.mp3') }}").play();
+      } else if (document.querySelectorAll('.alert-danger').length) {
         new Audio("{{ url_for('static', filename='alert.mp3') }}").play();
+      } else if (document.querySelectorAll('.alert-warning, .alert-info').length) {
+        new Audio("{{ url_for('static', filename='info.mp3') }}").play();
       }
     });
   </script>
