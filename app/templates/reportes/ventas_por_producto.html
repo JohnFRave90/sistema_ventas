@@ -5,7 +5,7 @@
 <div class="container-fluid px-4 py-4">
   <h4 class="mb-4 text-center">Informe de Ventas por Producto</h4>
 
-  <form method="get" action="{{ url_for('reportes.export_ventas_producto_excel') }}" class="row g-3 justify-content-center">
+  <form method="get" action="{{ url_for('reportes_comisiones.export_ventas_producto_excel') }}" class="row g-3 justify-content-center">
     <div class="col-md-3">
       <label for="start" class="form-label">Desde</label>
       <input type="date" class="form-control" name="start" id="start" required>

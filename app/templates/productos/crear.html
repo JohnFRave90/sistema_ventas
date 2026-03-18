@@ -8,10 +8,11 @@
 <div class="row justify-content-center">
   <div class="col-md-6" style="max-width: 500px;">
     <form method="POST" class="card p-4 shadow-sm bg-light">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
       <div class="mb-3">
         <label class="form-label">Código</label>
-        <input type="text" name="codigo" id=codigo class="form-control" maxlength="20" required>
+        <input type="text" name="codigo" class="form-control" maxlength="20" required>
       </div>
       <div class="mb-3">
         <label class="form-label">Nombre</label>

@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+
+{% block title %}Error interno{% endblock %}
+
+{% block content %}
+<div class="container mt-5 text-center">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <h1 class="display-1 text-danger">500</h1>
+            <h2 class="mb-3">Error interno del servidor</h2>
+            <p class="text-muted mb-4">Ocurrió un error inesperado. Por favor intenta de nuevo.</p>
+            <a href="{{ url_for('dashboard.dashboard') }}" class="btn btn-primary">
+                <i class="bi bi-house"></i> Volver al inicio
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -5,7 +5,12 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class Config:
-    SECRET_KEY = os.getenv("SECRET_KEY", "Incolpan12624+")
+    SECRET_KEY = os.getenv("SECRET_KEY")
+    if not SECRET_KEY:
+        raise RuntimeError(
+            "ERROR: SECRET_KEY no está configurada en .env. "
+            "Genera una con: python -c \"import secrets; print(secrets.token_hex(32))\""
+        )
     DEBUG = os.getenv("FLASK_DEBUG", "0") == "1"
 
     DB_USER = os.getenv("DB_USER")

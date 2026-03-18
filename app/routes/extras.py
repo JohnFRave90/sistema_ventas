@@ -1,10 +1,10 @@
 # app/extras.py
 
-import datetime
 from datetime import date
+from app.utils.queries import obtener_mapa_vendedores
+from app.utils.fechas import parsear_fecha
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from flask_login import login_required, current_user
-from datetime import date, datetime  # Corregido para usar datetime.strptime
 from flask import make_response, current_app
 from app.utils.pdf_utils import generate_pdf_document
 from app.utils.notificaciones import notificar_accion
@@ -47,7 +47,7 @@ def crear_extra():
     if request.method == 'POST':
         fecha_val = request.form.get('fecha') or hoy_iso
         try:
-            fecha_obj = datetime.strptime(fecha_val, '%Y-%m-%d').date()
+            fecha_obj = parsear_fecha(fecha_val) or date.today()
         except ValueError:
             fecha_obj = date.today()
 
@@ -129,17 +129,18 @@ def listar_extras():
 
     if filtro_fecha:
         try:
-            fecha_obj = datetime.strptime(filtro_fecha, '%Y-%m-%d').date()
-            query = query.filter(BDExtra.fecha == fecha_obj)
-        except ValueError:
-            flash('Formato de fecha inválido.', 'warning')
+            fecha_obj = parsear_fecha(filtro_fecha)
+            if fecha_obj:
+                query = query.filter(BDExtra.fecha == fecha_obj)
+        except ValueError as e:
+            flash(str(e), 'warning')
 
     if filtro_consecutivo:
         query = query.filter(BDExtra.consecutivo.ilike(f"%{filtro_consecutivo}%"))
 
     paginacion = query.order_by(BDExtra.fecha.desc()).paginate(page=page, per_page=30)
 
-    vendedores_map = {v.codigo_vendedor: v.nombre for v in Vendedor.query.all()}
+    vendedores_map = obtener_mapa_vendedores()
 
     # Calcular total por cada extra mostrado en la página actual
     for ex in paginacion.items:
@@ -166,7 +167,11 @@ def editar_extra(eid):
 
     if request.method == 'POST':
         extra.codigo_vendedor = request.form['vendedor']
-        extra.fecha = datetime.strptime(request.form['fecha'], '%Y-%m-%d').date()
+        try:
+            extra.fecha = parsear_fecha(request.form['fecha'])
+        except ValueError as e:
+            flash(str(e), 'danger')
+            return redirect(url_for('extras.editar_extra', eid=eid))
         extra.comentarios = request.form['comentarios']
 
         BDExtraItem.query.filter_by(extra_id=extra.id).delete()

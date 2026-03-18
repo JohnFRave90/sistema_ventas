@@ -14,21 +14,15 @@
           <i class="bi bi-shield-check"></i> Ver Auditoría del Sistema
         </a>
 
-        <!-- Botón: Borrar Movimientos -->
-        <form action="{{ url_for('movimientos.borrar_movimientos') }}" method="POST"
-              onsubmit="return confirm('¿Estás seguro de eliminar TODOS los movimientos de canastas?');">
-          <button class="btn btn-danger btn-lg w-100">
-            <i class="bi bi-trash"></i> Borrar TODOS los Movimientos
-          </button>
-        </form>
+        <!-- Administración de canastas -->
+        <a href="{{ url_for('canastas.admin') }}" class="btn btn-warning btn-lg w-100">
+          <i class="bi bi-basket"></i> Administrar Canastas
+        </a>
 
-        <!-- Botón: Borrar Canastas -->
-        <form action="{{ url_for('movimientos.borrar_canastas') }}" method="POST"
-              onsubmit="return confirm('¿Estás seguro de eliminar TODAS las canastas?');">
-          <button class="btn btn-danger btn-lg w-100">
-            <i class="bi bi-trash3"></i> Borrar TODAS las Canastas
-          </button>
-        </form>
+        <!-- Mantenimiento de movimientos -->
+        <a href="{{ url_for('movimientos.mantenimiento') }}" class="btn btn-secondary btn-lg w-100">
+          <i class="bi bi-tools"></i> Depurar Movimientos
+        </a>
 
       </div>
     </div>

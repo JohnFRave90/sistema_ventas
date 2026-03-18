@@ -60,6 +60,7 @@ def logout():
     return redirect(url_for("auth.login"))
 
 @auth_bp.route("/register", methods=["GET", "POST"])
+@login_required
 @rol_requerido('administrador')
 def register():
     if request.method == "POST":
@@ -96,23 +97,15 @@ def cambiar_contrasena():
         nueva = request.form.get('nueva', '').strip()
         confirmar = request.form.get('confirmar', '').strip()
 
-        print(f"DEBUG: Contraseña actual ingresada: '{actual}'")
-        print(f"DEBUG: Contraseña nueva: '{nueva}', Confirmar: '{confirmar}'")
-
         if nueva != confirmar:
             flash('Las contraseñas no coinciden', 'danger')
             return redirect(url_for('auth.cambiar_contrasena'))
-        
-        print(f"DEBUG: current_user: {current_user}")
-        print(f"DEBUG: current_user.id: {current_user.id}")
+
         usuario = Usuario.query.get(current_user.id)
 
         if not usuario:
             flash('Usuario no encontrado', 'danger')
             return redirect(url_for('auth.cambiar_contrasena'))
-
-        print(f"DEBUG: Hash almacenado en BD: {usuario.contraseña}")
-        print(f"DEBUG: Resultado check_password: {usuario.check_password(actual)}")
 
         if not usuario.check_password(actual):
             flash('La contraseña actual es incorrecta', 'danger')

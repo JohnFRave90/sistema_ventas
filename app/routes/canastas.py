@@ -31,11 +31,9 @@ def vista_canastas():
 @login_required
 @rol_requerido('semiadmin', 'administrador')
 def registrar_canasta():
-    from sqlalchemy import desc
-    from flask import session
-    from datetime import datetime
+    from sqlalchemy import desc  # Para ordenar descendente
 
-    # Valores por defecto del formulario
+    # Datos por defecto para el formulario
     datos_formulario = {
         'codigo_barras': '',
         'tamano': 'Estandar',
@@ -44,10 +42,10 @@ def registrar_canasta():
         'actualidad': 'Disponible'
     }
 
-    # Página actual
+    # Número de página actual desde los parámetros GET (por defecto 1)
     page = request.args.get('page', 1, type=int)
 
-    # Si el formulario fue enviado (POST)
+    # Si el formulario fue enviado (registro de nueva canasta)
     if request.method == 'POST':
         datos_formulario['codigo_barras'] = request.form['codigo_barras'].strip()
         datos_formulario['tamano']        = request.form['tamano']
@@ -55,38 +53,26 @@ def registrar_canasta():
         datos_formulario['estado']        = request.form['estado']
         datos_formulario['actualidad']    = request.form['actualidad']
 
-        # Validar si ya existe
+        # Validación de duplicado
         existente = Canasta.query.filter_by(codigo_barras=datos_formulario['codigo_barras']).first()
         if existente:
             flash('Error: Ya existe una canasta con ese código de barras.', 'danger')
         else:
             nueva_canasta = Canasta(
                 codigo_barras = datos_formulario['codigo_barras'],
-                tamaño        = datos_formulario['tamano'],
-                color         = datos_formulario['color'],
-                estado        = datos_formulario['estado'],
-                actualidad    = datos_formulario['actualidad'],
-                fecha_registro = datetime.now()
+                tamaño         = datos_formulario['tamano'],
+                color          = datos_formulario['color'],
+                estado         = datos_formulario['estado'],
+                actualidad     = datos_formulario['actualidad']
             )
             db.session.add(nueva_canasta)
             db.session.commit()
             flash('Canasta registrada correctamente.', 'success')
 
-            # Guardar últimas selecciones en sesión
-            session['ultimo_tamano']     = datos_formulario['tamano']
-            session['ultimo_color']      = datos_formulario['color']
-            session['ultimo_estado']     = datos_formulario['estado']
-            session['ultimo_actualidad'] = datos_formulario['actualidad']
-
+        # Después de registrar, redirige a la misma página (evita reenvío de formulario)
         return redirect(url_for('canastas.registrar_canasta'))
 
-    # Reemplazar valores por los guardados en sesión si existen
-    datos_formulario['tamano']     = session.get('ultimo_tamano', datos_formulario['tamano'])
-    datos_formulario['color']      = session.get('ultimo_color', datos_formulario['color'])
-    datos_formulario['estado']     = session.get('ultimo_estado', datos_formulario['estado'])
-    datos_formulario['actualidad'] = session.get('ultimo_actualidad', datos_formulario['actualidad'])
-
-    # Obtener canastas paginadas
+    # Obtener canastas paginadas (50 por página)
     paginacion = Canasta.query.order_by(desc(Canasta.fecha_registro)).paginate(page=page, per_page=50)
 
     return render_template(
@@ -279,56 +265,59 @@ def canastas_perdidas():
 
     return render_template('canastas/canastas_perdidas.html', canastas=canastas)
 
-@bp_canastas.route('/canastas_perdidas/exportar_csv', methods=['GET'])
+
+@bp_canastas.route('/canastas/admin', methods=['GET'])
 @login_required
-@rol_requerido('semiadmin', 'administrador')
-def exportar_csv_canastas_perdidas():
-    from io import StringIO
-    import csv
-    from flask import Response
-    from datetime import datetime, timedelta
-    from sqlalchemy import func
+@rol_requerido('administrador')
+def admin():
+    from sqlalchemy import text as sa_text
+    filtro_estado = request.args.get('estado', '')
+    filtro_color = request.args.get('color', '')
+    filtro_codigo = request.args.get('codigo', '').strip()
 
-    limite_fecha = datetime.now() - timedelta(days=7)
+    q = Canasta.query
 
-    # Subconsulta: obtener último movimiento "Sale" de cada canasta
-    subq = (db.session.query(
-                MovimientoCanasta.codigo_barras,
-                func.max(MovimientoCanasta.fecha_movimiento).label('fecha')
-            )
-            .filter(MovimientoCanasta.tipo_movimiento == 'Sale')
-            .group_by(MovimientoCanasta.codigo_barras)
-            .subquery())
+    if filtro_estado:
+        q = q.filter_by(actualidad=filtro_estado)
+    if filtro_color:
+        q = q.filter_by(color=filtro_color)
+    if filtro_codigo:
+        q = q.filter(Canasta.codigo_barras.ilike(f'%{filtro_codigo}%'))
 
-    # Consulta principal: canastas prestadas hace más de 7 días y no devueltas
-    canastas_data = (db.session.query(
-                        Canasta.codigo_barras,
-                        subq.c.fecha.label('fecha_prestamo'),
-                        Vendedor.nombre.label('nombre_vendedor')
-                    )
-                    .join(subq, Canasta.codigo_barras == subq.c.codigo_barras)
-                    .join(MovimientoCanasta, (MovimientoCanasta.codigo_barras == Canasta.codigo_barras) & (MovimientoCanasta.fecha_movimiento == subq.c.fecha))
-                    .join(Vendedor, MovimientoCanasta.codigo_vendedor == Vendedor.codigo_vendedor)
-                    .filter(Canasta.actualidad == 'Prestada')
-                    .filter(subq.c.fecha <= limite_fecha)
-                    .all())
+    canastas = q.order_by(Canasta.fecha_registro.desc()).all()
 
-    # Generar CSV
-    output = StringIO()
-    writer = csv.writer(output)
-    writer.writerow(['Código', 'Fecha de Préstamo', 'Vendedor', 'Días Prestada'])
+    colores = [r[0] for r in db.session.query(Canasta.color).distinct().order_by(Canasta.color).all() if r[0]]
 
-    for c in canastas_data:
-        dias_prestada = (datetime.now() - c.fecha_prestamo).days
-        writer.writerow([
-            c.codigo_barras,
-            c.fecha_prestamo.strftime('%Y-%m-%d'),
-            c.nombre_vendedor,
-            dias_prestada
-        ])
+    return render_template(
+        'canastas/admin.html',
+        canastas=canastas,
+        colores=colores,
+        filtro_estado=filtro_estado,
+        filtro_color=filtro_color,
+        filtro_codigo=filtro_codigo
+    )
 
-    output.seek(0)
-    return Response(output.getvalue(),
-                    mimetype='text/csv',
-                    headers={"Content-Disposition": "attachment;filename=canastas_perdidas.csv"})
 
+@bp_canastas.route('/canastas/eliminar', methods=['POST'])
+@login_required
+@rol_requerido('administrador')
+def eliminar():
+    from sqlalchemy import text as sa_text
+    codigos = request.form.getlist('canastas')
+
+    if not codigos:
+        flash('Debes seleccionar al menos una canasta.', 'warning')
+        return redirect(url_for('canastas.admin'))
+
+    try:
+        db.session.execute(sa_text('SET FOREIGN_KEY_CHECKS=0'))
+        eliminadas = Canasta.query.filter(Canasta.codigo_barras.in_(codigos)).delete(synchronize_session=False)
+        db.session.execute(sa_text('SET FOREIGN_KEY_CHECKS=1'))
+        db.session.commit()
+        flash(f'Se eliminaron {eliminadas} canasta(s) correctamente. El historial de movimientos se conserva.', 'success')
+    except Exception as e:
+        db.session.execute(sa_text('SET FOREIGN_KEY_CHECKS=1'))
+        db.session.rollback()
+        flash(f'Error al eliminar: {e}', 'danger')
+
+    return redirect(url_for('canastas.admin'))

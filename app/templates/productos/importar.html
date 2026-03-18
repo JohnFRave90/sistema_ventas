@@ -6,6 +6,7 @@
 <h4 class="mb-4">Importar productos desde archivo CSV</h4>
 
 <form method="POST" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <div class="mb-3">
     <label class="form-label">Archivo CSV</label>
     <input type="file" name="archivo" class="form-control" accept=".csv" required>

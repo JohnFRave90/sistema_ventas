@@ -13,6 +13,7 @@
         <h4 class="text-center mb-4">Iniciar sesión</h4>
 
         <form method="POST">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="mb-3">
             <label for="username" class="form-label">Usuario</label>
             <input type="text" class="form-control" id="username" name="username" required>
@@ -24,10 +25,10 @@
           <button type="submit" class="btn btn-incolpan w-100">Ingresar</button>
 
           <p class="text-center text-muted mt-3 small">
-            Hecho por John Velasquez para Incolpan S.A.S 2025 &copy; Derechos reservados.
+            Hecho por John Velasquez para Incolpan S.A.S 2026 &copy; Derechos reservados.
           </p>
           <p class="text-center text-muted mt-3 small">
-            Version 1.0.0
+            Version 1.1.0
           </p>
         </form>
       </div>

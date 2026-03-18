@@ -4,6 +4,7 @@
 <div class="container py-4">
   <h4 class="mb-4">Notificaciones por Telegram</h4>
   <form method="POST" class="card p-3 shadow-sm bg-light">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="form-check mb-3">
       <input type="checkbox" name="activo" id="activo" class="form-check-input"
              {% if config.activo %}checked{% endif %}>

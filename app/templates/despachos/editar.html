@@ -6,6 +6,7 @@
   <h4 class="text-center mb-4">Editar Despacho {{ codigo_origen }}</h4>
 
   <form method="POST" action="{{ url_for('despachos.editar_despacho', did=despacho_id) }}" class="card p-3 shadow-sm bg-light">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="codigo_origen" value="{{ codigo_origen }}">
     <input type="hidden" name="tipo_origen" value="{{ tipo_origen }}">
 

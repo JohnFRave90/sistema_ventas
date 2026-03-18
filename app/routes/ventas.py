@@ -1,5 +1,6 @@
 # app/routes/ventas.py
 from datetime import date, datetime
+from app.utils.queries import obtener_mapa_vendedores
 import json
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from flask_login import login_required, current_user
@@ -16,6 +17,7 @@ from app.models.producto     import Producto
 from app.models.vendedor     import Vendedor
 from app.utils.roles         import rol_requerido
 from app.utils.documentos    import generar_consecutivo
+from app.utils.fechas        import parsear_fecha
 from app.utils.notificaciones import notificar_accion
 from app.models.despachos    import BDDespacho, BDDespachoItem
 
@@ -31,8 +33,8 @@ def generar_venta():
     fecha_val = request.values.get('fecha', hoy_iso)
 
     try:
-        fecha_obj = datetime.strptime(fecha_val, '%Y-%m-%d').date()
-    except:
+        fecha_obj = parsear_fecha(fecha_val) or date.today()
+    except ValueError:
         fecha_obj, fecha_val = date.today(), hoy_iso
 
     if current_user.rol in ['administrador', 'semiadmin']:
@@ -223,20 +225,17 @@ def listar_ventas():
 
     if filtro_fecha:
         try:
-            d = datetime.strptime(filtro_fecha, '%Y-%m-%d').date()
+            d = parsear_fecha(filtro_fecha)
             q = q.filter(BDVenta.fecha == d)
-        except:
-            flash('Fecha inválida', 'warning')
+        except ValueError as e:
+            flash(str(e), 'warning')
 
     if filtro_cons:
         q = q.filter(BDVenta.consecutivo.ilike(f"%{filtro_cons}%"))
 
     paginacion = q.order_by(BDVenta.fecha.desc()).paginate(page=page, per_page=30)
 
-    vend_map = {
-        v.codigo_vendedor: v.nombre
-        for v in Vendedor.query.all()
-    }
+    vend_map = obtener_mapa_vendedores()
 
     return render_template(
         'ventas/listar.html',

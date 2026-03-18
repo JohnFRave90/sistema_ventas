@@ -86,18 +86,17 @@
 <div class="collapse ps-3" id="collapseReportes">
 
   {% if current_user.rol in ['administrador', 'semiadmin'] %}
-    <a href="{{ url_for('reportes.panel') }}" class="list-group-item list-group-item-action">Resumen General</a>
-    <a href="{{ url_for('reportes.despachos_por_producto') }}" class="list-group-item list-group-item-action">Despachos x Producto</a>
-    <a href="{{ url_for('reportes.pedidos_por_producto') }}" class="list-group-item list-group-item-action">Pedidos x Producto</a>
-    <a href="{{ url_for('reportes.extras_por_producto') }}" class="list-group-item list-group-item-action">Extras x Producto</a>
-    <a href="{{ url_for('reportes.devoluciones_por_producto') }}" class="list-group-item list-group-item-action">Devoluciones x Producto</a>
-    <a href="{{ url_for('reportes.ventas_por_producto') }}" class="list-group-item list-group-item-action">Ventas x Producto</a>
-    <a href="{{ url_for('reportes.pedidos_dia_por_vendedor') }}" class="list-group-item list-group-item-action">Pedidos Día x Día</a>
-    <a href="{{ url_for('reportes.pedidos_mes_por_vendedor') }}" class="list-group-item list-group-item-action">Pedidos Mes x Mes</a>
+    <a href="{{ url_for('reportes_ventas.panel') }}" class="list-group-item list-group-item-action">Resumen General</a>
+    <a href="{{ url_for('reportes_comisiones.pedidos_por_producto') }}" class="list-group-item list-group-item-action">Pedidos x Producto</a>
+    <a href="{{ url_for('reportes_comisiones.extras_por_producto') }}" class="list-group-item list-group-item-action">Extras x Producto</a>
+    <a href="{{ url_for('reportes_comisiones.devoluciones_por_producto') }}" class="list-group-item list-group-item-action">Devoluciones x Producto</a>
+    <a href="{{ url_for('reportes_comisiones.ventas_por_producto') }}" class="list-group-item list-group-item-action">Ventas x Producto</a>
+    <a href="{{ url_for('reportes_ventas.pedidos_dia_por_vendedor') }}" class="list-group-item list-group-item-action">Pedidos Día x Día</a>
+    <a href="{{ url_for('reportes_ventas.pedidos_mes_por_vendedor') }}" class="list-group-item list-group-item-action">Pedidos Mes x Mes</a>
     <hr class="my-1">
     <a href="{{ url_for('reportes_liquidaciones.reporte_liquidaciones_form') }}" class="list-group-item list-group-item-action">Reporte Liquidaciones</a>
   {% elif current_user.rol == 'vendedor' %}
-    <a href="{{ url_for('reportes.mi_panel') }}" class="list-group-item list-group-item-action">Mi Panel</a>
+    <a href="{{ url_for('reportes_ventas.mi_panel') }}" class="list-group-item list-group-item-action">Mi Panel</a>
   {% endif %}
 
 </div>

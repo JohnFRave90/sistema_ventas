@@ -1,0 +1,109 @@
+{% extends 'base.html' %}
+{% block title %}Mantenimiento de Movimientos{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>Depuración de Movimientos</h2>
+    <a href="{{ url_for('movimientos.registrar_movimiento') }}" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left"></i> Volver
+    </a>
+  </div>
+
+  <!-- Regla explicativa -->
+  <div class="alert alert-info d-flex gap-2 mb-4">
+    <i class="bi bi-info-circle-fill fs-5"></i>
+    <div>
+      <strong>Regla de depuración:</strong> Se conservan todos los movimientos de los últimos
+      <strong>3 meses</strong> (desde el <strong>{{ fecha_corte }}</strong>).
+      Para canastas sin actividad reciente, se conserva su <strong>último movimiento</strong>
+      para mantener trazabilidad de a quién fue prestada por última vez.
+    </div>
+  </div>
+
+  <!-- Tarjetas de resumen -->
+  <div class="row g-3 mb-4">
+    <div class="col-md-4">
+      <div class="card border-danger text-center h-100">
+        <div class="card-body">
+          <div class="display-5 fw-bold text-danger">{{ a_eliminar }}</div>
+          <div class="fw-semibold text-danger small text-uppercase mt-1">Movimientos a eliminar</div>
+          <div class="text-muted small mt-1">anteriores al {{ fecha_corte }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card border-success text-center h-100">
+        <div class="card-body">
+          <div class="display-5 fw-bold text-success">{{ a_conservar }}</div>
+          <div class="fw-semibold text-success small text-uppercase mt-1">Movimientos a conservar</div>
+          <div class="text-muted small mt-1">últimos 3 meses</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card border-warning text-center h-100">
+        <div class="card-body">
+          <div class="display-5 fw-bold text-warning">{{ excepciones|length }}</div>
+          <div class="fw-semibold text-warning small text-uppercase mt-1">Excepciones preservadas</div>
+          <div class="text-muted small mt-1">último registro de canastas inactivas</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabla de excepciones colapsable -->
+  {% if excepciones %}
+  <details class="mb-4">
+    <summary class="btn btn-outline-warning btn-sm mb-2">
+      Ver {{ excepciones|length }} canasta(s) con último movimiento conservado por excepción
+    </summary>
+    <table class="table table-bordered table-sm mt-2">
+      <thead style="background:#343a40;color:#fff">
+        <tr>
+          <th>Canasta</th>
+          <th>Último movimiento</th>
+          <th>Tipo</th>
+          <th>Vendedor</th>
+          <th>Días sin actividad</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ex in excepciones %}
+        <tr>
+          <td>{{ ex.codigo_barras }}</td>
+          <td>{{ ex.fecha }}</td>
+          <td>
+            {% if ex.tipo == 'Sale' %}
+              <span style="background:#e65100;color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">Sale</span>
+            {% else %}
+              <span style="background:#198754;color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">Entra</span>
+            {% endif %}
+          </td>
+          <td>{{ ex.vendedor }}</td>
+          <td><strong class="text-danger">{{ ex.dias }} días</strong></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </details>
+  {% endif %}
+
+  <!-- Acción -->
+  {% if a_eliminar > 0 %}
+  <form method="POST" action="{{ url_for('movimientos.depurar') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit" class="btn btn-danger"
+            onclick="return confirm('¿Confirmar depuración? Se eliminarán {{ a_eliminar }} movimiento(s). Esta acción no se puede deshacer.')">
+      <i class="bi bi-trash"></i> Confirmar depuración
+    </button>
+  </form>
+  {% else %}
+  <div class="alert alert-success">
+    <i class="bi bi-check-circle"></i>
+    No hay movimientos anteriores a 3 meses. No se requiere depuración.
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

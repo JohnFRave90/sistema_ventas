@@ -8,7 +8,8 @@ from app.models.ventas import BDVenta
 from app.models.vendedor import Vendedor
 from app.utils.roles import rol_requerido
 from app.utils.pdf_utils import generate_liquidacion_pdf
-from datetime import datetime
+from app.utils.fechas import parsear_fecha
+from app.utils.queries import obtener_mapa_vendedores_obj
 from flask import send_file
 from io import BytesIO
 from app.models.cambio import BD_CAMBIO
@@ -32,7 +33,11 @@ def crear_liquidacion():
     descuento_cambios = 0.0
 
     if fecha and vendedor_codigo:
-        fecha_obj = datetime.strptime(fecha, '%Y-%m-%d').date()
+        try:
+            fecha_obj = parsear_fecha(fecha)
+        except ValueError as e:
+            flash(str(e), "danger")
+            return render_template('liquidaciones/crear.html', vendedores=vendedores)
 
         existente = BD_LIQUIDACION.query.filter_by(fecha=fecha_obj, codigo_vendedor=vendedor_codigo).first()
         if existente:
@@ -126,8 +131,7 @@ def listar_liquidaciones():
         BD_LIQUIDACION.id.desc()
     ).paginate(page=page, per_page=30)
 
-    vendedores = Vendedor.query.all()
-    vendedores_dict = {v.codigo_vendedor: v for v in vendedores}
+    vendedores_dict = obtener_mapa_vendedores_obj()
 
     return render_template(
         'liquidaciones/listar.html',

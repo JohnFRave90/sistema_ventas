@@ -3,6 +3,7 @@
 {% block content %}
 <h3>Editar Cambio {{ cambio.fecha.strftime('%d/%m/%Y') }} - {{ cambio.codigo_vendedor }}</h3>
 <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <div class="row">
     <div class="col-md-4">
       <label>Fecha</label>

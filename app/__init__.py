@@ -1,7 +1,8 @@
-from flask import Flask
+from flask import Flask, render_template
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
-from flask_login import LoginManager
+from flask_login import LoginManager, login_required
+from flask_wtf.csrf import CSRFProtect
 from .config import Config
 from flask import send_from_directory, current_app
 import os
@@ -10,6 +11,7 @@ import os
 db = SQLAlchemy()
 migrate = Migrate()
 login_manager = LoginManager()
+csrf = CSRFProtect()
 
 def create_app():
     app = Flask(__name__)
@@ -19,6 +21,7 @@ def create_app():
     db.init_app(app)
     migrate.init_app(app, db)
     login_manager.init_app(app)
+    csrf.init_app(app)
 
     login_manager.login_view = "auth.login"
     login_manager.login_message = "Debes iniciar sesión para continuar."
@@ -42,6 +45,7 @@ def create_app():
 
     # Ruta para servir archivos subidos
     @app.route('/uploads/<path:filename>')
+    @login_required
     def descargar_archivo_uploads(filename):
         uploads_path = os.path.join(current_app.root_path, 'uploads')
         return send_from_directory(uploads_path, filename)
@@ -58,7 +62,8 @@ def create_app():
     from app.routes.devoluciones import devoluciones_bp
     from app.routes.ventas import ventas_bp
     from app.routes.despachos import despachos_bp
-    from app.routes.reportes import reportes_bp
+    from app.routes.reportes_ventas import reportes_ventas_bp
+    from app.routes.reportes_comisiones import reportes_comisiones_bp
     from app.routes.festivos import festivos_bp
     from app.routes.liquidaciones import liquidaciones_bp
     from app.routes.cambios import cambios_bp
@@ -79,7 +84,8 @@ def create_app():
     app.register_blueprint(devoluciones_bp)
     app.register_blueprint(ventas_bp)
     app.register_blueprint(despachos_bp)
-    app.register_blueprint(reportes_bp)
+    app.register_blueprint(reportes_ventas_bp)
+    app.register_blueprint(reportes_comisiones_bp)
     app.register_blueprint(festivos_bp)
     app.register_blueprint(liquidaciones_bp)
     app.register_blueprint(cambios_bp)
@@ -89,6 +95,16 @@ def create_app():
     app.register_blueprint(config_bp)
     app.register_blueprint(dialogflow_bp)
     
+
+    # Registrar handlers de error globales
+    @app.errorhandler(404)
+    def pagina_no_encontrada(e):
+        return render_template("errors/404.html"), 404
+
+    @app.errorhandler(500)
+    def error_interno(e):
+        app.logger.error(f"Error 500: {e}")
+        return render_template("errors/500.html"), 500
 
     # Registrar comandos CLI personalizados
     from app.cli.root import crear_root

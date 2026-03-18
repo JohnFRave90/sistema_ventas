@@ -1,0 +1,154 @@
+{% extends 'base.html' %}
+{% block title %}Administrar Canastas{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>Administrar Canastas</h2>
+    <a href="{{ url_for('canastas.registrar_canasta') }}" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left"></i> Volver
+    </a>
+  </div>
+
+  <!-- Filtros -->
+  <form method="GET" action="{{ url_for('canastas.admin') }}" class="row g-2 mb-4">
+    <div class="col-auto">
+      <select name="estado" class="form-select">
+        <option value="">Estado: Todos</option>
+        <option value="Disponible" {% if filtro_estado == 'Disponible' %}selected{% endif %}>Disponible</option>
+        <option value="Prestada" {% if filtro_estado == 'Prestada' %}selected{% endif %}>Prestada</option>
+      </select>
+    </div>
+    <div class="col-auto">
+      <select name="color" class="form-select">
+        <option value="">Color: Todos</option>
+        {% for c in colores %}
+        <option value="{{ c }}" {% if filtro_color == c %}selected{% endif %}>{{ c }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-auto">
+      <input type="text" name="codigo" value="{{ filtro_codigo }}" class="form-control" placeholder="Buscar código...">
+    </div>
+    <div class="col-auto">
+      <button type="submit" class="btn btn-outline-primary">Filtrar</button>
+      <a href="{{ url_for('canastas.admin') }}" class="btn btn-outline-secondary">Limpiar</a>
+    </div>
+  </form>
+
+  <!-- Formulario de eliminación -->
+  <form method="POST" action="{{ url_for('canastas.eliminar') }}" id="formEliminar">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <span id="contadorSeleccionadas" class="text-muted small">0 canastas seleccionadas</span>
+      <button type="button" class="btn btn-danger" id="btnEliminar" disabled
+              data-bs-toggle="modal" data-bs-target="#modalConfirmar">
+        <i class="bi bi-trash"></i> Eliminar seleccionadas
+      </button>
+    </div>
+
+    <table class="table table-bordered table-hover">
+      <thead style="background:#343a40;color:#fff">
+        <tr>
+          <th><input type="checkbox" id="seleccionarTodos"></th>
+          <th>Código</th>
+          <th>Tamaño</th>
+          <th>Color</th>
+          <th>Estado</th>
+          <th>Fecha registro</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in canastas %}
+        <tr {% if c.actualidad == 'Prestada' %}style="background:#fff8e1"{% endif %}
+            class="fila-canasta" data-estado="{{ c.actualidad }}">
+          <td><input type="checkbox" name="canastas" value="{{ c.codigo_barras }}" class="check-canasta"></td>
+          <td>{{ c.codigo_barras }}</td>
+          <td>{{ c.tamaño }}</td>
+          <td>{{ c.color }}</td>
+          <td>
+            {% if c.actualidad == 'Prestada' %}
+              <span style="background:#e65100;color:#fff;padding:3px 10px;border-radius:10px;font-size:12px;font-weight:600">
+                ⚠ Prestada
+              </span>
+            {% else %}
+              <span style="background:#198754;color:#fff;padding:3px 10px;border-radius:10px;font-size:12px;font-weight:600">
+                {{ c.actualidad }}
+              </span>
+            {% endif %}
+          </td>
+          <td>{{ c.fecha_registro.strftime('%Y-%m-%d') }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="text-center text-muted">No hay canastas con esos filtros.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </form>
+</div>
+
+<!-- Modal de confirmación -->
+<div class="modal fade" id="modalConfirmar" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header bg-danger text-white">
+        <h5 class="modal-title">Confirmar eliminación</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p>Vas a eliminar <strong id="modalConteo">0</strong> canasta(s).</p>
+        <p class="small text-muted">El historial de movimientos se conservará para auditoría.</p>
+        <div id="avisosPrestadas" class="d-none"
+             style="background:#e65100;color:#fff;padding:8px 12px;border-radius:4px;font-size:13px">
+          ⚠ <strong id="contadoPrestadas">0</strong> canasta(s) seleccionadas están actualmente
+          <strong>Prestadas</strong>. Asegúrate de haberlas recuperado antes de eliminar.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-danger" id="btnConfirmarEliminar">Confirmar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const checks = document.querySelectorAll('.check-canasta');
+const selTodos = document.getElementById('seleccionarTodos');
+const contador = document.getElementById('contadorSeleccionadas');
+const btnEliminar = document.getElementById('btnEliminar');
+const modalConteo = document.getElementById('modalConteo');
+const avisosPrestadas = document.getElementById('avisosPrestadas');
+const contadoPrestadas = document.getElementById('contadoPrestadas');
+
+function actualizarContador() {
+  const seleccionadas = document.querySelectorAll('.check-canasta:checked');
+  const n = seleccionadas.length;
+  contador.textContent = n + ' canasta(s) seleccionada(s)';
+  btnEliminar.disabled = n === 0;
+
+  modalConteo.textContent = n;
+  const prestadas = [...seleccionadas].filter(c =>
+    c.closest('tr').dataset.estado === 'Prestada'
+  ).length;
+  if (prestadas > 0) {
+    contadoPrestadas.textContent = prestadas;
+    avisosPrestadas.classList.remove('d-none');
+  } else {
+    avisosPrestadas.classList.add('d-none');
+  }
+}
+
+selTodos.addEventListener('change', function() {
+  checks.forEach(c => c.checked = this.checked);
+  actualizarContador();
+});
+
+checks.forEach(c => c.addEventListener('change', actualizarContador));
+
+document.getElementById('btnConfirmarEliminar').addEventListener('click', function() {
+  document.getElementById('formEliminar').submit();
+});
+</script>
+{% endblock %}

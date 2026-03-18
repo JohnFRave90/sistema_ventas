@@ -5,6 +5,7 @@
     <h2>Informe de Búsqueda de Canasta</h2>
 
     <form method="POST" class="mb-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <label for="codigo_barras" class="form-label">Código de Barras:</label>
         <input type="text" id="codigo_barras" name="codigo_barras"
                class="form-control" maxlength="25" style="max-width: 300px;" required autofocus>

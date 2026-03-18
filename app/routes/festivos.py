@@ -3,7 +3,7 @@ from flask_login import login_required
 from app import db
 from app.models.festivo import Festivo
 from app.utils.roles import rol_requerido
-from datetime import datetime
+from app.utils.fechas import parsear_fecha
 from datetime import date
 
 festivos_bp = Blueprint('festivos', __name__, url_prefix='/festivos')
@@ -23,9 +23,11 @@ def crear_festivo():
         fecha_str = request.form.get('fecha')
         nota      = request.form.get('nota','').strip()
         try:
-            fecha = datetime.strptime(fecha_str, '%Y-%m-%d').date()
-        except ValueError:
-            flash("Fecha inválida.", "danger")
+            fecha = parsear_fecha(fecha_str)
+            if not fecha:
+                raise ValueError("La fecha es requerida.")
+        except ValueError as e:
+            flash(str(e), "danger")
             return redirect(url_for('festivos.crear_festivo'))
 
         if Festivo.query.filter_by(fecha=fecha).first():
@@ -48,9 +50,11 @@ def editar_festivo(id):
         fecha_str = request.form.get('fecha')
         nota      = request.form.get('nota','').strip()
         try:
-            fecha = datetime.strptime(fecha_str, '%Y-%m-%d').date()
-        except ValueError:
-            flash("Fecha inválida.", "danger")
+            fecha = parsear_fecha(fecha_str)
+            if not fecha:
+                raise ValueError("La fecha es requerida.")
+        except ValueError as e:
+            flash(str(e), "danger")
             return redirect(url_for('festivos.editar_festivo', id=id))
 
         # Si cambió fecha y ya existe otro registro

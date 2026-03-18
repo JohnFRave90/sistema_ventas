@@ -7,6 +7,7 @@
 
     <!-- Formulario de registro -->
     <form method="POST" autocomplete="off" class="mb-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="row">
             <div class="col-md-6 mb-3">
                 <label for="codigo_barras" class="form-label">Código de Barras:</label>
@@ -54,6 +55,14 @@
             </div>
         </div>
     </form>
+
+    {% if current_user.rol == 'administrador' %}
+    <div class="mb-3">
+      <a href="{{ url_for('canastas.admin') }}" class="btn btn-outline-danger">
+        <i class="bi bi-trash"></i> Administrar / Eliminar canastas
+      </a>
+    </div>
+    {% endif %}
 
     <!-- Exportar -->
     <form action="{{ url_for('canastas.exportar_canastas_csv') }}" method="GET" class="mb-4">

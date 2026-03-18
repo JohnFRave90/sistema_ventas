@@ -1,5 +1,6 @@
 from datetime import date, datetime
 from flask import Blueprint, render_template, request, redirect, url_for, flash
+from app.utils.queries import obtener_mapa_vendedores
 from flask_login import login_required, current_user
 from flask import make_response, current_app
 from app.utils.pdf_utils import generate_pdf_document
@@ -11,6 +12,8 @@ from app.models.producto    import Producto
 from app.models.vendedor    import Vendedor
 from app.utils.roles        import rol_requerido
 from app.utils.documentos   import generar_consecutivo
+from app.utils.validators   import validar_entero
+from app.utils.fechas       import parsear_fecha
 from app.utils.notificaciones import notificar_accion
 from app.utils.productos import get_productos_ordenados
 
@@ -44,7 +47,7 @@ def crear_pedido():
     if request.method == 'POST':
         fecha_val = request.form.get('fecha') or hoy_iso
         try:
-            fecha_obj = datetime.strptime(fecha_val, '%Y-%m-%d').date()
+            fecha_obj = parsear_fecha(fecha_val) or date.today()
         except ValueError:
             fecha_obj = date.today()
 
@@ -55,10 +58,14 @@ def crear_pedido():
 
         cods = request.form.getlist('producto')
         cants = request.form.getlist('cantidad')
-        items_data = [
-            {'codigo': c, 'cantidad': int(q)}
-            for c, q in zip(cods, cants) if c and q
-        ]
+        try:
+            items_data = [
+                {'codigo': c, 'cantidad': validar_entero(q, "cantidad")}
+                for c, q in zip(cods, cants) if c and q
+            ]
+        except ValueError as e:
+            flash(str(e), "danger")
+            return redirect(request.url)
 
         if BDPedido.query.filter_by(
             codigo_vendedor=selected_v,
@@ -123,10 +130,10 @@ def listar_pedidos():
 
     if filtro_fecha:
         try:
-            d = datetime.strptime(filtro_fecha, '%Y-%m-%d').date()
+            d = parsear_fecha(filtro_fecha)
             q = q.filter(BDPedido.fecha == d)
-        except ValueError:
-            flash("Formato de fecha inválido.", "warning")
+        except ValueError as e:
+            flash(str(e), "warning")
 
     if filtro_consecutivo:
         q = q.filter(BDPedido.consecutivo.ilike(f"%{filtro_consecutivo}%"))
@@ -137,10 +144,7 @@ def listar_pedidos():
     for p in paginacion.items:
         p.total = sum(item.subtotal for item in p.items)
 
-    vendedores_map = {
-        v.codigo_vendedor: v.nombre
-        for v in Vendedor.query.all()
-    }
+    vendedores_map = obtener_mapa_vendedores()
 
     return render_template(
         'pedidos/listar.html',
@@ -167,9 +171,9 @@ def editar_pedido(pid):
     if request.method == 'POST':
         f = request.form.get('fecha')
         try:
-            pedido.fecha = datetime.strptime(f, '%Y-%m-%d').date()
-        except:
-            pass
+            pedido.fecha = parsear_fecha(f) or pedido.fecha
+        except ValueError as e:
+            flash(str(e), "warning")
 
         pedido.codigo_vendedor = request.form.get('vendedor', pedido.codigo_vendedor)
         pedido.comentarios     = request.form.get('comentarios', '').strip()
@@ -180,14 +184,19 @@ def editar_pedido(pid):
 
         for c, q in zip(cods, cants):
             if c and q:
+                try:
+                    cantidad = validar_entero(q, "cantidad")
+                except ValueError as e:
+                    flash(str(e), "danger")
+                    return redirect(request.url)
                 prod = Producto.query.filter_by(codigo=c).first()
                 pu   = prod.precio if prod else 0
                 pedido.items.append(
                     BDPedidoItem(
                         producto_cod = c,
-                        cantidad     = int(q),
+                        cantidad     = cantidad,
                         precio_unit  = pu,
-                        subtotal     = pu * int(q)
+                        subtotal     = pu * cantidad
                     )
                 )
 

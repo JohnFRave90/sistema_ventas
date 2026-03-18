@@ -10,6 +10,17 @@ from app.models.producto import Producto
 # Media carta en retrato (5.5"×8.5")
 MEDIA_CARTA = (letter[1] / 2, letter[0])
 
+
+def _estilo_tabla_base():
+    """Estilo base común para todas las tablas de documentos Incolpan."""
+    return [
+        ('GRID',         (0, 0), (-1, -1), 0.5, colors.black),
+        ('BACKGROUND',   (0, 0), (-1,  0), colors.lightgrey),
+        ('VALIGN',       (0, 0), (-1, -1), 'MIDDLE'),
+        ('LEFTPADDING',  (0, 0), (-1, -1), 4),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+    ]
+
 # Títulos según tipo de documento
 titles = {
     'pedido':     'ORDEN DE PEDIDO INCOLPAN - DISTRIBUIDORES',
@@ -156,13 +167,8 @@ def generate_pdf_document(modelo, vendedor, logo_path, tipo):
         ])
 
         table = Table(data, colWidths=col_ws, hAlign='LEFT')
-        table.setStyle(TableStyle([
-            ('GRID',       (0,0), (-1,-1), 0.5, colors.black),
-            ('BACKGROUND',(0,0), (-1,0),   colors.lightgrey),
-            ('VALIGN',     (0,0), (-1,-1), 'MIDDLE'),
-            ('ALIGN',      (2,1), (-1,-1), 'RIGHT'),
-            ('LEFTPADDING',(0,0), (-1,-1), 4),
-            ('RIGHTPADDING',(0,0),(-1,-1), 4),
+        table.setStyle(TableStyle(_estilo_tabla_base() + [
+            ('ALIGN', (2, 1), (-1, -1), 'RIGHT'),
         ]))
         elements.append(table)
 
@@ -203,13 +209,8 @@ def generate_pdf_document(modelo, vendedor, logo_path, tipo):
         ])
 
         table = Table(data, colWidths=col_ws, hAlign='LEFT')
-        table.setStyle(TableStyle([
-            ('GRID',       (0,0), (-1,-1), 0.5, colors.black),
-            ('BACKGROUND',(0,0), (-1,0),    colors.lightgrey),
-            ('VALIGN',     (0,0), (-1,-1),  'MIDDLE'),
-            ('ALIGN',      (1,1), (-1,-1),  'RIGHT'),
-            ('LEFTPADDING',(0,0), (-1,-1),   4),
-            ('RIGHTPADDING',(0,0),(-1,-1),   4),
+        table.setStyle(TableStyle(_estilo_tabla_base() + [
+            ('ALIGN', (1, 1), (-1, -1), 'RIGHT'),
         ]))
         elements.append(table)
 
@@ -354,7 +355,7 @@ def generate_pdf_despacho(despacho, vendedor, tipo="pedido"):
             item.producto_cod,
             nombre_prod,
             str(item.cantidad_pedida),
-            str(item.cantidad),
+            str(item.cantidad_despachada),
             item.lote or "-",
             f"${subtotal:,.0f}"
         ])

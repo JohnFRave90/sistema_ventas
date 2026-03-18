@@ -33,6 +33,20 @@ def dias_habiles_mes(year: int, month: int) -> int:
     last  = date(year, month, calendar.monthrange(year, month)[1])
     return contar_habiles(first, last)
 
+def parsear_fecha(valor: str):
+    """
+    Convierte un string 'YYYY-MM-DD' a un objeto date.
+    Retorna None si el valor está vacío.
+    Lanza ValueError con mensaje claro si el formato es incorrecto.
+    """
+    if not valor or not valor.strip():
+        return None
+    try:
+        return date.fromisoformat(valor.strip())
+    except ValueError:
+        raise ValueError(f"Formato de fecha inválido: '{valor}'. Usa el formato YYYY-MM-DD.")
+
+
 def sync_festivos_oficiales(years):
     """
     Sincroniza tu tabla Festivo con los festivos oficiales de Colombia

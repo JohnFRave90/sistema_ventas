@@ -60,6 +60,7 @@
               <form method="post"
                     action="{{ url_for('cambios.eliminar_cambio', id=c.id) }}"
                     onsubmit="return confirm('¿Seguro desea eliminar este cambio?');">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button class="btn btn-sm btn-outline-danger" title="Eliminar">
                   <i class="bi bi-trash3"></i>
                 </button>

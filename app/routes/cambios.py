@@ -6,7 +6,8 @@ from app import db
 from app.models.cambio import BD_CAMBIO
 from app.models.vendedor import Vendedor
 from app.utils.roles import rol_requerido
-from datetime import datetime
+from app.utils.fechas import parsear_fecha
+from app.utils.queries import obtener_mapa_vendedores_obj
 
 cambios_bp = Blueprint('cambios', __name__, url_prefix='/cambios')
 
@@ -18,7 +19,7 @@ def crear_cambio():
 
     if request.method == 'POST':
         try:
-            fecha = datetime.strptime(request.form['fecha'], '%Y-%m-%d').date()
+            fecha = parsear_fecha(request.form['fecha'])
             codigo_vendedor = request.form['vendedor']
             valor_cambio = float(request.form['valor_cambio'])
         except (ValueError, KeyError):
@@ -62,8 +63,7 @@ def listar_cambios():
     cambios = query.order_by(BD_CAMBIO.fecha.desc(), BD_CAMBIO.id.desc()).all()
 
     # Cargar vendedores para mostrar nombres
-    vendedores = Vendedor.query.all()
-    vendedores_dict = {v.codigo_vendedor: v for v in vendedores}
+    vendedores_dict = obtener_mapa_vendedores_obj()
 
     return render_template('cambios/listar.html', cambios=cambios, vendedores_dict=vendedores_dict)
 
@@ -76,7 +76,7 @@ def editar_cambio(id):
 
     if request.method == 'POST':
         try:
-            fecha = datetime.strptime(request.form['fecha'], '%Y-%m-%d').date()
+            fecha = parsear_fecha(request.form['fecha'])
             codigo_vendedor = request.form['vendedor']
             valor_cambio = float(request.form['valor_cambio'])
             comentarios = request.form.get('comentarios', '')

@@ -63,6 +63,7 @@
               </a>
               {% if current_user.rol == 'administrador' %}
               <form action="{{ url_for('ventas.eliminar_venta', vid=v.id) }}" method="post" onsubmit="return confirm('¿Eliminar esta venta?');">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button class="btn btn-outline-danger btn-sm" title="Eliminar">
                   <i class="bi bi-trash3"></i>
                 </button>

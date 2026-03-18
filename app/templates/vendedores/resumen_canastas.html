@@ -5,6 +5,7 @@
     <h2>Canastas Prestadas por un Vendedor</h2>
 
     <form method="POST" class="mb-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <label for="vendedor" class="form-label">Seleccionar Vendedor:</label>
         <select id="vendedor" name="vendedor" class="form-select" style="max-width: 320px;" required>
             <option value="">Seleccionar Vendedor</option>

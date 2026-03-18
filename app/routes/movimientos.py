@@ -12,10 +12,8 @@ bp_movimientos = Blueprint('movimientos', __name__, template_folder='../template
 
 @bp_movimientos.route('/movimientos', methods=['GET', 'POST'])
 @login_required
-@rol_requerido('semiadmin', 'administrador')
+@rol_requerido('semiadmin','administrador')
 def registrar_movimiento():
-    from datetime import datetime
-
     if 'contador_registros' not in session:
         session['contador_registros'] = 0
 
@@ -35,24 +33,19 @@ def registrar_movimiento():
                 if not canasta:
                     flash('Canasta no encontrada.', 'danger')
                 else:
-                    ultima = MovimientoCanasta.query.filter_by(
-                        codigo_barras=codigo_barras
-                    ).order_by(MovimientoCanasta.fecha_movimiento.desc()).first()
+                    # Validar movimientos anteriores
+                    ultima = MovimientoCanasta.query.filter_by(codigo_barras=codigo_barras).order_by(MovimientoCanasta.fecha_movimiento.desc()).first()
 
-                    error = None
                     if tipo == 'Entra' and not ultima:
-                        error = 'No se ha registrado ningún movimiento para esta canasta, no se puede devolver.'
+                        flash('No se ha registrado ningún movimiento para esta canasta, no se puede devolver.', 'danger')
                     elif ultima and tipo == 'Entra' and ultima.codigo_vendedor != vendedor.codigo_vendedor:
-                        error = 'Esta canasta ha sido prestada a otro vendedor. No puedes devolverla.'
+                        flash('Esta canasta ha sido prestada a otro vendedor. No puedes devolverla.', 'danger')
                     elif tipo == 'Sale' and canasta.actualidad == 'Prestada':
-                        error = 'Esta canasta ya ha sido prestada.'
+                        flash('Esta canasta ya ha sido prestada.', 'danger')
                     elif tipo == 'Entra' and canasta.actualidad == 'Disponible':
-                        error = 'Esta canasta no ha sido prestada.'
-
-                    if error:
-                        flash(error, 'danger')
+                        flash('Esta canasta no ha sido prestada.', 'danger')
                     else:
-                        # Registrar movimiento exitoso
+                        # Registrar movimiento
                         nuevo_mov = MovimientoCanasta(
                             codigo_vendedor=vendedor.codigo_vendedor,
                             tipo_movimiento=tipo,
@@ -61,7 +54,7 @@ def registrar_movimiento():
                         )
                         db.session.add(nuevo_mov)
 
-                        # Actualizar estado de la canasta
+                        # Actualizar actualidad de la canasta
                         if tipo == 'Sale':
                             canasta.actualidad = 'Prestada'
                         elif tipo == 'Entra':
@@ -71,24 +64,18 @@ def registrar_movimiento():
 
                         flash('Movimiento registrado correctamente.', 'success')
 
-                        # Reiniciar contador si cambió vendedor o tipo
-                        if (
-                            vendedor_nombre != session.get('vendedor_seleccionado') or
-                            tipo != session.get('tipo_seleccionado')
-                        ):
+                        # Mantener datos en sesión
+                        if vendedor_nombre != session.get('vendedor_seleccionado') or tipo != session.get('tipo_seleccionado'):
                             session['contador_registros'] = 0
 
-                        # Incrementar contador solo en caso de éxito
-                        session['contador_registros'] += 1
-
-                        # Mantener valores
                         session['vendedor_seleccionado'] = vendedor_nombre
                         session['tipo_seleccionado'] = tipo
                         session['codigo_barras'] = ''
+                        session['contador_registros'] += 1
 
         return redirect(url_for('movimientos.registrar_movimiento'))
 
-    # === GET ===
+    # Datos para GET
     vendedores = Vendedor.query.order_by(Vendedor.nombre.asc()).all()
     movimientos = (db.session.query(MovimientoCanasta, Vendedor)
                    .join(Vendedor, MovimientoCanasta.codigo_vendedor == Vendedor.codigo_vendedor)
@@ -339,33 +326,119 @@ def informe_canastas_prestadas_por_vendedor():
         flash(f'Ocurrió un error al generar el informe: {e}', 'danger')
         return render_template('vendedores/informe_canastas_prestadas.html', canastas_prestadas=[])
 
-# Borrar todos los movimientos (solo root)
-@bp_movimientos.route('/borrar_movimientos', methods=['POST'])
+
+def _calcular_depuracion():
+    """
+    Calcula qué movimientos se eliminarían y cuáles se conservarían.
+    Retorna un dict con: ids_excepcion, a_eliminar, a_conservar,
+    excepciones, fecha_corte.
+    """
+    from sqlalchemy import func
+    from dateutil.relativedelta import relativedelta
+
+    fecha_corte = datetime.now() - relativedelta(months=3)
+
+    # Canastas cuyo último movimiento es anterior a fecha_corte
+    subq_canastas_inactivas = (
+        db.session.query(MovimientoCanasta.codigo_barras)
+        .group_by(MovimientoCanasta.codigo_barras)
+        .having(func.max(MovimientoCanasta.fecha_movimiento) < fecha_corte)
+        .subquery()
+    )
+
+    # ID del último movimiento de esas canastas (a preservar como excepción)
+    subq_ids_excepcion = (
+        db.session.query(func.max(MovimientoCanasta.id).label('id'))
+        .filter(MovimientoCanasta.codigo_barras.in_(subq_canastas_inactivas))
+        .group_by(MovimientoCanasta.codigo_barras)
+        .subquery()
+    )
+
+    ids_excepcion = [r[0] for r in db.session.query(subq_ids_excepcion.c.id).all()]
+
+    # Movimientos a eliminar: anteriores a fecha_corte Y no son excepción
+    q_eliminar = MovimientoCanasta.query.filter(
+        MovimientoCanasta.fecha_movimiento < fecha_corte
+    )
+    if ids_excepcion:
+        q_eliminar = q_eliminar.filter(~MovimientoCanasta.id.in_(ids_excepcion))
+    a_eliminar = q_eliminar.count()
+
+    # Movimientos a conservar (recientes)
+    a_conservar = (
+        MovimientoCanasta.query
+        .filter(MovimientoCanasta.fecha_movimiento >= fecha_corte)
+        .count()
+    )
+
+    # Detalle de las excepciones para mostrar en la tabla
+    excepciones = []
+    if ids_excepcion:
+        movs = (
+            db.session.query(MovimientoCanasta, Vendedor)
+            .join(Vendedor, MovimientoCanasta.codigo_vendedor == Vendedor.codigo_vendedor)
+            .filter(MovimientoCanasta.id.in_(ids_excepcion))
+            .order_by(MovimientoCanasta.fecha_movimiento.asc())
+            .all()
+        )
+        for mov, vendedor in movs:
+            dias = (datetime.now() - mov.fecha_movimiento).days
+            excepciones.append({
+                'codigo_barras': mov.codigo_barras,
+                'fecha': mov.fecha_movimiento.strftime('%Y-%m-%d'),
+                'tipo': mov.tipo_movimiento,
+                'vendedor': vendedor.nombre,
+                'dias': dias,
+            })
+
+    return {
+        'ids_excepcion': ids_excepcion,
+        'a_eliminar': a_eliminar,
+        'a_conservar': a_conservar,
+        'excepciones': excepciones,
+        'fecha_corte': fecha_corte.strftime('%Y-%m-%d'),
+    }
+
+
+@bp_movimientos.route('/movimientos/mantenimiento', methods=['GET'])
 @login_required
-@rol_requerido('root')
-def borrar_movimientos():
+@rol_requerido('administrador')
+def mantenimiento():
+    datos = _calcular_depuracion()
+    return render_template('movimientos/mantenimiento.html', **datos)
+
+
+@bp_movimientos.route('/movimientos/depurar', methods=['POST'])
+@login_required
+@rol_requerido('administrador')
+def depurar():
+    from dateutil.relativedelta import relativedelta
+
+    datos = _calcular_depuracion()
+    ids_excepcion = datos['ids_excepcion']
+    a_eliminar = datos['a_eliminar']
+
+    if a_eliminar == 0:
+        flash('No hay movimientos a depurar.', 'info')
+        return redirect(url_for('movimientos.registrar_movimiento'))
+
     try:
-        db.session.execute(text('DELETE FROM movimientos'))
-        db.session.execute(text('UPDATE canastas SET actualidad = "Disponible"'))
+        fecha_corte = datetime.now() - relativedelta(months=3)
+
+        q = MovimientoCanasta.query.filter(MovimientoCanasta.fecha_movimiento < fecha_corte)
+        if ids_excepcion:
+            q = q.filter(~MovimientoCanasta.id.in_(ids_excepcion))
+
+        eliminados = q.delete(synchronize_session=False)
         db.session.commit()
-        flash('✔ Todos los movimientos han sido borrados y las canastas se actualizaron a "Disponible".', 'success')
+        flash(
+            f'Depuración completada: {eliminados} movimiento(s) eliminado(s). '
+            f'{len(ids_excepcion)} registro(s) conservado(s) por excepción.',
+            'success'
+        )
+        return redirect(url_for('movimientos.registrar_movimiento'))
     except Exception as e:
         db.session.rollback()
-        flash(f'❌ Error al borrar los movimientos: {e}', 'danger')
-    return redirect(url_for('dashboard.dashboard'))  # Redirige a dashboard o página principal
-
-# Borrar todas las canastas (solo root)
-@bp_movimientos.route('/borrar_canastas', methods=['POST'])
-@login_required
-@rol_requerido('root')
-def borrar_canastas():
-    try:
-        db.session.execute(text('DELETE FROM canastas'))
-        db.session.commit()
-        flash('✔ Todas las canastas han sido borradas.', 'success')
-    except Exception as e:
-        db.session.rollback()
-        flash(f'❌ Error al borrar las canastas: {e}', 'danger')
-    return redirect(url_for('dashboard.dashboard'))
-
+        flash(f'Error durante la depuración: {e}', 'danger')
+        return redirect(url_for('movimientos.mantenimiento'))
 

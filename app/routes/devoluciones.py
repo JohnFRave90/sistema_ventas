@@ -1,5 +1,6 @@
-import datetime
-from datetime import date, datetime
+from datetime import date
+from app.utils.queries import obtener_mapa_vendedores
+from app.utils.fechas import parsear_fecha
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from flask_login import login_required, current_user
 from flask import make_response, current_app
@@ -45,7 +46,7 @@ def crear_devolucion():
     if request.method == 'POST':
         fecha_val = request.form.get('fecha') or hoy_iso
         try:
-            fecha_obj = datetime.strptime(fecha_val, '%Y-%m-%d').date()
+            fecha_obj = parsear_fecha(fecha_val) or date.today()
         except ValueError:
             fecha_obj = date.today()
 
@@ -134,9 +135,10 @@ def editar_devolucion(did):
     if request.method == 'POST':
         f = request.form.get('fecha')
         try:
-            dev.fecha = datetime.strptime(f, '%Y-%m-%d').date()
-        except:
-            pass
+            dev.fecha = parsear_fecha(f)
+        except ValueError as e:
+            current_app.logger.error(f"Error al parsear fecha: {e}")
+            flash(str(e), "danger")
 
         dev.codigo_vendedor = request.form.get('vendedor', dev.codigo_vendedor)
         dev.comentarios = request.form.get('comentarios', '').strip()
@@ -188,10 +190,11 @@ def listar_devoluciones():
 
     if filtro_fecha:
         try:
-            d = datetime.strptime(filtro_fecha, '%Y-%m-%d').date()
-            q = q.filter(BDDevolucion.fecha == d)
-        except ValueError:
-            flash("Formato de fecha inválido.", "warning")
+            d = parsear_fecha(filtro_fecha)
+            if d:
+                q = q.filter(BDDevolucion.fecha == d)
+        except ValueError as e:
+            flash(str(e), "warning")
 
     if filtro_consecutivo:
         q = q.filter(BDDevolucion.consecutivo.ilike(f"%{filtro_consecutivo}%"))
@@ -201,10 +204,7 @@ def listar_devoluciones():
     for d in paginacion.items:
         d.total = sum(item.subtotal for item in d.items)
 
-    vendedores_map = {
-        v.codigo_vendedor: v.nombre
-        for v in Vendedor.query.all()
-    }
+    vendedores_map = obtener_mapa_vendedores()
 
     return render_template(
         'devoluciones/listar.html',

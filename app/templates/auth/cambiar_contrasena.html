@@ -8,6 +8,7 @@
       <div class="card-body">
         <h4 class="text-center mb-4">Cambiar contraseña</h4>
         <form method="POST">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="mb-3">
             <label for="actual" class="form-label">Contraseña actual</label>
             <input type="password" class="form-control" id="actual" name="actual" required>
