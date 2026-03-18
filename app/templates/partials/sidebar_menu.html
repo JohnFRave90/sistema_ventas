@@ -109,7 +109,8 @@
   <div class="collapse ps-3" id="collapseCanastas">
       <a href="{{ url_for('canastas.vista_canastas') }}" class="list-group-item list-group-item-action">Registrar Canasta</a>
       <a href="{{ url_for('movimientos.registrar_movimiento') }}" class="list-group-item list-group-item-action">Movimientos Canastas</a>
-  </div>
+      <a href="{{ url_for('canastas.canastas_perdidas') }}" class="list-group-item list-group-item-action">Canastas Perdidas</a>
+    </div>
 
   <!-- Reportes Canastas -->
   <a class="list-group-item list-group-item-action fw-bold" data-bs-toggle="collapse" href="#collapseReportesCanastas">
@@ -122,7 +123,6 @@
       <a href="{{ url_for('canastas.informe_buscar_canasta') }}" class="list-group-item list-group-item-action">Buscar Canasta</a>
       <a href="{{ url_for('movimientos.resumen_canastas_vendedor') }}" class="list-group-item list-group-item-action">Resumen Canastas por Vendedor</a>
       <a href="{{ url_for('movimientos.informe_canastas_prestadas_por_vendedor') }}" class="list-group-item list-group-item-action">Informe Canastas Prestadas por Vendedor</a>
-      <a href="{{ url_for('canastas.canastas_perdidas') }}" class="list-group-item list-group-item-action">Canastas Perdidas</a>
   </div>
   {% endif %}
 
