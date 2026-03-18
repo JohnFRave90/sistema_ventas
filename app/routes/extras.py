@@ -156,6 +156,7 @@ def listar_extras():
     )
 
 @extras_bp.route('/editar/<int:eid>', methods=['GET', 'POST'])
+@login_required
 @rol_requerido('administrador')
 def editar_extra(eid):
     from app.utils.productos import get_productos_ordenados

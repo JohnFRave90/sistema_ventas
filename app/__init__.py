@@ -37,7 +37,8 @@ def create_app():
         if ':' in user_id:
             tipo, id_real = user_id.split(':')
             if tipo == 'vendedor':
-                return Vendedor.query.get(int(id_real))
+                v = Vendedor.query.get(int(id_real))
+                return UserWrapper(v, 'vendedor') if v else None
             elif tipo == 'usuario':
                 return Usuario.query.get(int(id_real))
         else:

@@ -19,3 +19,7 @@ class UserWrapper(UserMixin):
     @property
     def nombre_usuario(self):
         return self.user.nombre_usuario
+
+    def __getattr__(self, name):
+        # Cualquier atributo no definido aquí se busca en el objeto interno
+        return getattr(self.user, name)

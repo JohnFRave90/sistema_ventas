@@ -1,4 +1,5 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask_login import login_required
 from app import db
 from app.models.producto import Producto
 from app.utils.roles import rol_requerido
@@ -12,6 +13,7 @@ productos_bp = Blueprint('productos', __name__, url_prefix='/productos')
 
 # LISTAR PRODUCTOS
 @productos_bp.route('/')
+@login_required
 @rol_requerido('administrador', 'semiadmin')
 def listar_productos():
     productos = Producto.query.all()
@@ -19,6 +21,7 @@ def listar_productos():
 
 # CREAR PRODUCTO
 @productos_bp.route('/crear', methods=['GET', 'POST'])
+@login_required
 @rol_requerido('administrador')
 def crear_producto():
     if request.method == 'POST':
@@ -41,6 +44,7 @@ def crear_producto():
 
 # EDITAR PRODUCTO
 @productos_bp.route('/editar/<int:id>', methods=['GET', 'POST'])
+@login_required
 @rol_requerido('administrador')
 def editar_producto(id):
     producto = Producto.query.get_or_404(id)
@@ -61,6 +65,7 @@ def editar_producto(id):
 
 # ELIMINAR PRODUCTO
 @productos_bp.route('/eliminar/<int:id>')
+@login_required
 @rol_requerido('administrador')
 def eliminar_producto(id):
     producto = Producto.query.get_or_404(id)
@@ -70,6 +75,7 @@ def eliminar_producto(id):
     return redirect(url_for('productos.listar_productos'))
 
 @productos_bp.route('/importar', methods=['GET', 'POST'])
+@login_required
 @rol_requerido('administrador')
 def importar_productos():
     if request.method == 'POST':

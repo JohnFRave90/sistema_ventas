@@ -228,9 +228,13 @@ def canastas_perdidas():
     from datetime import datetime, timedelta
     from sqlalchemy import func
 
+    # Filtros desde la URL
+    filtro_vendedor = request.args.get('vendedor', '').strip()
+    filtro_dias     = request.args.get('dias', '', type=str).strip()
+
     limite_fecha = datetime.now() - timedelta(days=7)
 
-    # Subconsulta: obtener último movimiento "Sale" de cada canasta
+    # Subconsulta: último movimiento "Sale" de cada canasta
     subq = (db.session.query(
                 MovimientoCanasta.codigo_barras,
                 func.max(MovimientoCanasta.fecha_movimiento).label('fecha')
@@ -239,31 +243,79 @@ def canastas_perdidas():
             .group_by(MovimientoCanasta.codigo_barras)
             .subquery())
 
-    # Consulta principal: canastas prestadas hace más de 7 días
+    # Consulta principal: canastas perdidas (prestadas >7 días) O ya cobradas
     canastas_data = (db.session.query(
                         Canasta.codigo_barras,
+                        Canasta.cobrada,
+                        Canasta.fecha_cobro,
                         subq.c.fecha.label('fecha_prestamo'),
                         Vendedor.nombre.label('nombre_vendedor')
                     )
                     .join(subq, Canasta.codigo_barras == subq.c.codigo_barras)
-                    .join(MovimientoCanasta, (MovimientoCanasta.codigo_barras == Canasta.codigo_barras) & (MovimientoCanasta.fecha_movimiento == subq.c.fecha))
+                    .join(MovimientoCanasta,
+                          (MovimientoCanasta.codigo_barras == Canasta.codigo_barras) &
+                          (MovimientoCanasta.fecha_movimiento == subq.c.fecha))
                     .join(Vendedor, MovimientoCanasta.codigo_vendedor == Vendedor.codigo_vendedor)
-                    .filter(Canasta.actualidad == 'Prestada')
-                    .filter(subq.c.fecha <= limite_fecha)
+                    .filter(
+                        ((Canasta.actualidad == 'Prestada') & (subq.c.fecha <= limite_fecha)) |
+                        ((Canasta.actualidad == 'No disponible') & (Canasta.cobrada == True))
+                    )
+                    .distinct()
                     .all())
 
-    # Calcular días prestada en Python
     canastas = []
     for c in canastas_data:
-        dias_prestada = (datetime.now() - c.fecha_prestamo).days
         canastas.append({
-            'codigo_barras': c.codigo_barras,
-            'fecha_prestamo': c.fecha_prestamo.strftime('%Y-%m-%d'),
+            'codigo_barras':   c.codigo_barras,
+            'cobrada':         c.cobrada,
+            'fecha_cobro':     c.fecha_cobro.strftime('%Y-%m-%d') if c.fecha_cobro else None,
+            'fecha_prestamo':  c.fecha_prestamo.strftime('%Y-%m-%d'),
             'nombre_vendedor': c.nombre_vendedor,
-            'dias_prestada': dias_prestada
+            'dias_prestada':   (datetime.now() - c.fecha_prestamo).days,
         })
 
-    return render_template('canastas/canastas_perdidas.html', canastas=canastas)
+    # Aplicar filtros en Python
+    if filtro_vendedor:
+        canastas = [c for c in canastas if filtro_vendedor.lower() in c['nombre_vendedor'].lower()]
+
+    if filtro_dias.isdigit():
+        canastas = [c for c in canastas if c['dias_prestada'] >= int(filtro_dias)]
+
+    # Ordenar: primero por vendedor, luego por días descendente
+    canastas.sort(key=lambda c: (c['nombre_vendedor'].lower(), -c['dias_prestada']))
+
+    # Lista de vendedores para el selector del filtro
+    vendedores = sorted(set(c['nombre_vendedor'] for c in canastas))
+
+    return render_template('canastas/canastas_perdidas.html',
+                           canastas=canastas,
+                           vendedores=vendedores,
+                           filtro_vendedor=filtro_vendedor,
+                           filtro_dias=filtro_dias)
+
+
+@bp_canastas.route('/canastas/<codigo_barras>/cobrar', methods=['POST'])
+@login_required
+@rol_requerido('semiadmin', 'administrador')
+def cobrar_canasta(codigo_barras):
+    from datetime import datetime
+    canasta = Canasta.query.filter_by(codigo_barras=codigo_barras).first_or_404()
+
+    if canasta.cobrada:
+        flash('Esta canasta ya fue cobrada.', 'warning')
+        return redirect(url_for('canastas.canastas_perdidas'))
+
+    if canasta.actualidad != 'Prestada':
+        flash('Esta canasta no está en estado prestada.', 'warning')
+        return redirect(url_for('canastas.canastas_perdidas'))
+
+    canasta.cobrada = True
+    canasta.fecha_cobro = datetime.now()
+    canasta.actualidad = 'No disponible'
+    db.session.commit()
+
+    flash('Canasta marcada como cobrada correctamente.', 'success')
+    return redirect(url_for('canastas.canastas_perdidas'))
 
 
 @bp_canastas.route('/canastas/admin', methods=['GET'])

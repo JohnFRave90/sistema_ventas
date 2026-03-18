@@ -2,31 +2,75 @@
 {% block title %}Canastas Perdidas{% endblock %}
 {% block content %}
 <div class="container mt-4">
-    <h2>Canastas Prestadas Hace Más de 7 Días</h2>
+    <h2>Canastas Perdidas</h2>
+    <p class="text-muted">Canastas prestadas hace más de 7 días. Las cobradas se muestran como historial.</p>
+
+    <form method="GET" class="row g-2 mb-3">
+        <div class="col-auto">
+            <select name="vendedor" class="form-select form-select-sm">
+                <option value="">-- Todos los vendedores --</option>
+                {% for v in vendedores %}
+                    <option value="{{ v }}" {% if filtro_vendedor == v %}selected{% endif %}>{{ v }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-auto">
+            <input type="number" name="dias" class="form-control form-control-sm" placeholder="Más de X días"
+                   value="{{ filtro_dias }}" min="1" style="width: 140px;">
+        </div>
+        <div class="col-auto">
+            <button type="submit" class="btn btn-sm btn-secondary">Filtrar</button>
+        </div>
+        {% if filtro_vendedor or filtro_dias %}
+        <div class="col-auto">
+            <a href="{{ url_for('canastas.canastas_perdidas') }}" class="btn btn-sm btn-outline-secondary">Limpiar</a>
+        </div>
+        {% endif %}
+    </form>
 
     {% if canastas %}
-    <table class="table table-bordered table-striped">
-        <thead>
+    <table class="table table-bordered table-striped align-middle">
+        <thead class="table-dark">
             <tr>
                 <th>Código</th>
-                <th>Fecha de Préstamo</th>
+                <th>Fecha préstamo</th>
                 <th>Vendedor</th>
-                <th>Días Prestada</th>
+                <th>Días desde préstamo</th>
+                <th>Estado cobro</th>
+                <th>Fecha cobro</th>
             </tr>
         </thead>
         <tbody>
             {% for c in canastas %}
             <tr>
-                <td>{{ c.codigo_barras }}</td>
+                <td><code>{{ c.codigo_barras }}</code></td>
                 <td>{{ c.fecha_prestamo }}</td>
                 <td>{{ c.nombre_vendedor }}</td>
-                <td>{{ c.dias_prestada }}</td>
+                <td>{{ c.dias_prestada }} días</td>
+                <td>
+                    {% if c.cobrada %}
+                        <span class="badge bg-success">Cobrada</span>
+                    {% else %}
+                        <span class="badge bg-warning text-dark">Pendiente</span>
+                        <form method="POST"
+                              action="{{ url_for('canastas.cobrar_canasta', codigo_barras=c.codigo_barras) }}"
+                              class="d-inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit"
+                                    class="btn btn-sm btn-warning"
+                                    onclick="return confirm('¿Confirmas el cobro de esta canasta?')">
+                                Marcar cobrada
+                            </button>
+                        </form>
+                    {% endif %}
+                </td>
+                <td>{{ c.fecha_cobro if c.fecha_cobro else '—' }}</td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
     {% else %}
-        <p>No se encontraron canastas perdidas.</p>
+        <p class="text-muted">No se encontraron canastas perdidas.</p>
     {% endif %}
 </div>
 {% endblock %}

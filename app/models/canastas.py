@@ -9,7 +9,10 @@ class Canasta(db.Model):
     color = db.Column(db.String(50), nullable=True, comment='Color de la canasta')
     estado = db.Column(db.String(50), nullable=True, comment='Estado físico de la canasta: Nuevo o susas')
     fecha_registro = db.Column(db.DateTime, nullable=False, server_default=db.func.now(), comment='Fecha en que fue registrada')
-    actualidad = db.Column(db.String(50), nullable=False, default='Disponible', comment='Disponible, Prestada o No disponible')
+    actualidad  = db.Column(db.String(50), nullable=False, default='Disponible', comment='Disponible, Prestada o No disponible')
+    # server_default obligatorio para migracion segura en MySQL con filas existentes
+    cobrada     = db.Column(db.Boolean, nullable=False, default=False, server_default=db.text('0'), comment='Indica si la canasta ha sido cobrada al vendedor')
+    fecha_cobro = db.Column(db.DateTime, nullable=True, comment='Fecha en que se registró el cobro de la canasta perdida')
 
     # Relación con movimientos
     movimientos = db.relationship('MovimientoCanasta', backref='canasta', lazy=True, primaryjoin="Canasta.codigo_barras==MovimientoCanasta.codigo_barras")
