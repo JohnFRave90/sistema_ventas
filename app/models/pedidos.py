@@ -11,6 +11,7 @@ class BDPedido(db.Model):
     fecha            = db.Column(db.Date, nullable=False)
     comentarios      = db.Column(db.Text)
     usado            = db.Column(db.Boolean, default=False)
+    uuid_origen      = db.Column(db.String(36), unique=True, nullable=True)
 
     items            = db.relationship(
                           'BDPedidoItem',

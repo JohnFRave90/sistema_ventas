@@ -25,3 +25,6 @@ from app.models import canastas
 
 from .config_telegram import ConfiguracionTelegram
 
+from .cliente          import Cliente
+from .venta_autoventa  import BDVentaAutoventa, BDVentaAutoventaItem
+

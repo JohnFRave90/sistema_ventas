@@ -3,6 +3,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_login import LoginManager, login_required
 from flask_wtf.csrf import CSRFProtect
+from flask_jwt_extended import JWTManager
 from .config import Config
 from flask import send_from_directory, current_app
 import os
@@ -12,6 +13,7 @@ db = SQLAlchemy()
 migrate = Migrate()
 login_manager = LoginManager()
 csrf = CSRFProtect()
+jwt = JWTManager()
 
 def create_app():
     app = Flask(__name__)
@@ -22,6 +24,9 @@ def create_app():
     migrate.init_app(app, db)
     login_manager.init_app(app)
     csrf.init_app(app)
+    app.config['JWT_SECRET_KEY'] = app.config['SECRET_KEY']
+    app.config['JWT_ACCESS_TOKEN_EXPIRES'] = 57600  # 16 horas en segundos
+    jwt.init_app(app)
 
     login_manager.login_view = "auth.login"
     login_manager.login_message = "Debes iniciar sesión para continuar."
@@ -95,7 +100,10 @@ def create_app():
     app.register_blueprint(bp_movimientos)
     app.register_blueprint(config_bp)
     app.register_blueprint(dialogflow_bp)
-    
+
+    from app.routes.api import api_bp
+    app.register_blueprint(api_bp, url_prefix='/api/v1')
+    csrf.exempt(api_bp)  # Las rutas API usan JWT, no cookies/CSRF
 
     # Registrar handlers de error globales
     @app.errorhandler(404)

@@ -11,6 +11,7 @@ class BDExtra(db.Model):
     fecha           = db.Column(db.Date, nullable=False)
     comentarios     = db.Column(db.Text, nullable=True)
     usado           = db.Column(db.Boolean, default=False, nullable=False)
+    uuid_origen     = db.Column(db.String(36), unique=True, nullable=True)
 
     items = db.relationship(
         'BDExtraItem',
