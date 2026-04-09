@@ -130,7 +130,7 @@
 
   {% if current_user.rol == 'root' %}
   <li><a href="{{ url_for('dashboard.dashboard_root') }}" class="nav-link">🛡 Panel Root</a></li>
-` {% endif %}
+  {% endif %}
 
   <!-- Configuración -->
   {% if current_user.rol == 'administrador' %}
