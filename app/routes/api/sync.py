@@ -14,6 +14,7 @@ from app.models.extras import BDExtra
 from app.models.extra_item import BDExtraItem
 from app.models.producto import Producto
 from app.models.cliente import Cliente
+from app.models.turno import BDTurno
 from app.utils.documentos import generar_consecutivo
 
 
@@ -52,17 +53,29 @@ def _procesar_venta(codigo_vendedor, data, uuid):
 
 
 def _procesar_devolucion(codigo_vendedor, data, uuid):
+    # Idempotencia: si ya existe una devolución con este uuid, no duplicar.
+    if uuid:
+        existente = BDDevolucion.query.filter_by(uuid_origen=uuid).first()
+        if existente:
+            return {'uuid': uuid, 'ok': True, 'consecutivo': existente.consecutivo, 'duplicate': True}
     items_data = data.get('items', [])
     for it in items_data:
         if it.get('cantidad', 0) < 0:
             return {'uuid': uuid, 'ok': False, 'error': f"Ítem {it.get('producto_cod')} tiene cantidad negativa"}
     try:
+        turno_id = data.get('turno_id')
+        if turno_id is not None:
+            turno = BDTurno.query.filter_by(id=turno_id, codigo_vendedor=codigo_vendedor).first()
+            if not turno:
+                turno_id = None
         devolucion = BDDevolucion(
             consecutivo=generar_consecutivo(BDDevolucion, 'DV'),
             codigo_vendedor=codigo_vendedor,
             fecha=date.today(),
+            turno_id=turno_id,
             comentarios=data.get('comentarios', ''),
-            usos=0
+            usos=0,
+            uuid_origen=uuid or None
         )
         db.session.add(devolucion)
         db.session.flush()

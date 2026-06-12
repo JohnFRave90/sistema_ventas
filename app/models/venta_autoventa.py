@@ -14,6 +14,8 @@ class BDVentaAutoventa(db.Model):
         nullable=False
     )
     cliente_id       = db.Column(db.Integer, db.ForeignKey('clientes.id'), nullable=False)
+    turno_id         = db.Column(db.Integer, db.ForeignKey('bd_turnos.id'), nullable=True)
+    visit_id         = db.Column(db.Integer, db.ForeignKey('bd_visitas_clientes.id'), nullable=True)
     fecha            = db.Column(db.Date, nullable=False)
     total            = db.Column(db.Numeric(10, 2), nullable=False, default=0)
     enviada_por_sync = db.Column(db.Boolean, default=False, nullable=False)
@@ -21,6 +23,8 @@ class BDVentaAutoventa(db.Model):
     created_at       = db.Column(db.DateTime, server_default=db.func.now())
 
     cliente = db.relationship('Cliente', back_populates='ventas')
+    turno = db.relationship('BDTurno')
+    visita = db.relationship('BDVisitaCliente')
     items   = db.relationship(
         'BDVentaAutoventaItem',
         back_populates='venta',

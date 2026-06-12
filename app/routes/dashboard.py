@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, flash, session, redirect, url_for
+from flask import Blueprint, render_template, flash, session, redirect, url_for, request
 from flask_login import login_required, current_user
 from app import db
 from app.models.pedidos import BDPedido
@@ -6,10 +6,13 @@ from app.models.pedido_item import BDPedidoItem
 from app.models.vendedor import Vendedor
 from app.models.canastas import Canasta, MovimientoCanasta
 from app.models.ventas import BDVenta
+from app.models.cliente import Cliente
+from app.models.visita_cliente import BDVisitaCliente
+from app.models.venta_autoventa import BDVentaAutoventa
 from app.models.extra_item import BDExtraItem
 from app.models.extras import BDExtra
 from app.utils.roles import rol_requerido
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from sqlalchemy import func
 from sqlalchemy import not_, exists
 
@@ -355,4 +358,168 @@ def dashboard_vendedor():
                            canastas_perdidas_count=canastas_perdidas_count,
                            canastas_perdidas_list=canastas_perdidas_list,
                            canastas_prestadas_count=canastas_prestadas_count)
+
+
+@dashboard_bp.route("/dashboard/mapa-operativo", methods=['GET'])
+@login_required
+@rol_requerido('administrador', 'semiadmin')
+def dashboard_mapa_operativo():
+    fecha_raw = (request.args.get('fecha') or '').strip()
+    vendedor_filtro = (request.args.get('vendedor') or '').strip()
+
+    if fecha_raw:
+        try:
+            fecha_objetivo = date.fromisoformat(fecha_raw)
+        except ValueError:
+            fecha_objetivo = datetime.now().date()
+            flash('Fecha invalida. Se uso la fecha actual.', 'warning')
+    else:
+        fecha_objetivo = datetime.now().date()
+
+    vendedores = (db.session.query(Vendedor.codigo_vendedor, Vendedor.nombre)
+                  .order_by(Vendedor.nombre.asc())
+                  .all())
+    vendedores_map = {v.codigo_vendedor: v.nombre for v in vendedores}
+
+    clientes_query = Cliente.query.filter(
+        Cliente.latitud.isnot(None),
+        Cliente.longitud.isnot(None),
+    )
+    if vendedor_filtro:
+        clientes_query = clientes_query.filter(Cliente.codigo_vendedor == vendedor_filtro)
+    clientes = clientes_query.all()
+
+    visitas_query = BDVisitaCliente.query.filter(BDVisitaCliente.fecha_visita == fecha_objetivo)
+    if vendedor_filtro:
+        visitas_query = visitas_query.filter(BDVisitaCliente.codigo_vendedor == vendedor_filtro)
+    visitas = visitas_query.order_by(BDVisitaCliente.id.desc()).all()
+
+    ventas_query = BDVentaAutoventa.query.filter(BDVentaAutoventa.fecha == fecha_objetivo)
+    if vendedor_filtro:
+        ventas_query = ventas_query.filter(BDVentaAutoventa.codigo_vendedor == vendedor_filtro)
+    ventas = ventas_query.order_by(BDVentaAutoventa.id.desc()).all()
+
+    clientes_por_id = {c.id: c for c in clientes}
+
+    estado_por_cliente = {}
+    for visita in visitas:
+        previo = estado_por_cliente.get(visita.cliente_id)
+        if previo is None or visita.id > previo['id']:
+            estado_por_cliente[visita.cliente_id] = {
+                'id': visita.id,
+                'estado': (visita.estado or 'pendiente').lower(),
+            }
+
+    clientes_payload = []
+    total_excepciones = 0
+    total_visitados = 0
+
+    for cliente in clientes:
+        lat = float(cliente.latitud)
+        lng = float(cliente.longitud)
+
+        estado = 'pendiente'
+        estado_visita = estado_por_cliente.get(cliente.id)
+        if estado_visita:
+            if estado_visita['estado'] == 'completada':
+                estado = 'visitado'
+                total_visitados += 1
+            elif estado_visita['estado'] == 'excepcion':
+                estado = 'excepcion'
+                total_excepciones += 1
+            elif estado_visita['estado'] == 'en_progreso':
+                estado = 'en_progreso'
+
+        clientes_payload.append({
+            'id': cliente.id,
+            'codigo_cliente': cliente.codigo_cliente,
+            'nombre': cliente.nombre,
+            'direccion': cliente.direccion or '',
+            'ciudad': cliente.ciudad or '',
+            'ruta': cliente.ruta or 'Sin ruta',
+            'codigo_vendedor': cliente.codigo_vendedor,
+            'vendedor': vendedores_map.get(cliente.codigo_vendedor, cliente.codigo_vendedor),
+            'lat': lat,
+            'lng': lng,
+            'estado': estado,
+        })
+
+    visitas_payload = []
+    visitas_vistas = set()
+    for visita in visitas:
+        if visita.id in visitas_vistas:
+            continue
+        visitas_vistas.add(visita.id)
+
+        cliente = clientes_por_id.get(visita.cliente_id)
+        lat = float(visita.lat_checkin) if visita.lat_checkin is not None else (float(cliente.latitud) if cliente and cliente.latitud is not None else None)
+        lng = float(visita.lng_checkin) if visita.lng_checkin is not None else (float(cliente.longitud) if cliente and cliente.longitud is not None else None)
+        if lat is None or lng is None:
+            continue
+
+        visitas_payload.append({
+            'id': visita.id,
+            'cliente_id': visita.cliente_id,
+            'cliente': cliente.nombre if cliente else f'Cliente {visita.cliente_id}',
+            'codigo_vendedor': visita.codigo_vendedor,
+            'vendedor': vendedores_map.get(visita.codigo_vendedor, visita.codigo_vendedor),
+            'estado': (visita.estado or 'pendiente').lower(),
+            'lat': lat,
+            'lng': lng,
+            'checkin_at': visita.checkin_at.isoformat() if visita.checkin_at else None,
+            'checkout_at': visita.checkout_at.isoformat() if visita.checkout_at else None,
+        })
+
+    ventas_por_cliente = {}
+    total_ventas_monto = 0.0
+    total_ventas_count = 0
+    for venta in ventas:
+        total_ventas_count += 1
+        total_ventas_monto += float(venta.total or 0)
+        item = ventas_por_cliente.get(venta.cliente_id)
+        if item is None:
+            ventas_por_cliente[venta.cliente_id] = {
+                'cantidad': 0,
+                'total': 0.0,
+                'codigo_vendedor': venta.codigo_vendedor,
+            }
+            item = ventas_por_cliente[venta.cliente_id]
+
+        item['cantidad'] += 1
+        item['total'] += float(venta.total or 0)
+
+    ventas_payload = []
+    for cliente_id, data in ventas_por_cliente.items():
+        cliente = clientes_por_id.get(cliente_id)
+        if not cliente:
+            continue
+        ventas_payload.append({
+            'cliente_id': cliente_id,
+            'cliente': cliente.nombre,
+            'codigo_vendedor': data['codigo_vendedor'],
+            'vendedor': vendedores_map.get(data['codigo_vendedor'], data['codigo_vendedor']),
+            'lat': float(cliente.latitud),
+            'lng': float(cliente.longitud),
+            'cantidad': data['cantidad'],
+            'total': round(data['total'], 2),
+        })
+
+    return render_template(
+        'dashboard/mapa_operativo.html',
+        fecha_objetivo=fecha_objetivo,
+        vendedor_filtro=vendedor_filtro,
+        vendedores=vendedores,
+        mapa_payload={
+            'clientes': clientes_payload,
+            'visitas': visitas_payload,
+            'ventas': ventas_payload,
+        },
+        resumen={
+            'clientes': len(clientes_payload),
+            'visitados': total_visitados,
+            'excepciones': total_excepciones,
+            'ventas_cantidad': total_ventas_count,
+            'ventas_total': round(total_ventas_monto, 2),
+        },
+    )
 

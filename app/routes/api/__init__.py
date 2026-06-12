@@ -17,4 +17,9 @@ from app.routes.api import ventas     # noqa: F401
 from app.routes.api import pedidos    # noqa: F401
 from app.routes.api import extras     # noqa: F401
 from app.routes.api import devoluciones # noqa: F401
+from app.routes.api import cambios      # noqa: F401
 from app.routes.api import sync       # noqa: F401
+from app.routes.api import rutas      # noqa: F401
+from app.routes.api import turnos     # noqa: F401
+from app.routes.api import visitas    # noqa: F401
+from app.routes.api import ubicaciones # noqa: F401

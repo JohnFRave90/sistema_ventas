@@ -6,10 +6,21 @@ from app.routes.api import api_bp, respuesta_ok, respuesta_error
 from app.models.venta_autoventa import BDVentaAutoventa, BDVentaAutoventaItem
 from app.models.producto import Producto
 from app.models.cliente import Cliente
+from app.models.turno import BDTurno
+from app.models.visita_cliente import BDVisitaCliente
 from app.utils.documentos import generar_consecutivo
 
 
-def _guardar_venta(codigo_vendedor, cliente_id, fecha, items_data, uuid_origen=None, por_sync=False):
+def _guardar_venta(
+    codigo_vendedor,
+    cliente_id,
+    fecha,
+    items_data,
+    uuid_origen=None,
+    por_sync=False,
+    turno_id=None,
+    visit_id=None,
+):
     """Crea BDVentaAutoventa + items. Retorna la venta creada."""
     total = 0
     items_creados = []
@@ -25,6 +36,8 @@ def _guardar_venta(codigo_vendedor, cliente_id, fecha, items_data, uuid_origen=N
         consecutivo=generar_consecutivo(BDVentaAutoventa, 'AV'),
         codigo_vendedor=codigo_vendedor,
         cliente_id=cliente_id,
+        turno_id=turno_id,
+        visit_id=visit_id,
         fecha=fecha,
         total=total,
         enviada_por_sync=por_sync,
@@ -53,6 +66,8 @@ def registrar_venta():
 
     uuid_origen = data.get('uuid')
     cliente_id = data.get('cliente_id')
+    turno_id = data.get('turno_id')
+    visit_id = data.get('visit_id')
     items_data = data.get('items', [])
 
     if not cliente_id or not items_data:
@@ -61,6 +76,20 @@ def registrar_venta():
     cliente = Cliente.query.filter_by(id=cliente_id).first()
     if not cliente or cliente.codigo_vendedor != codigo_vendedor:
         return respuesta_error('Cliente no encontrado', 404)
+
+    if turno_id is not None:
+        turno = BDTurno.query.filter_by(id=turno_id, codigo_vendedor=codigo_vendedor).first()
+        if not turno:
+            return respuesta_error('turno_id no valido para el vendedor', 400)
+
+    if visit_id is not None:
+        visita = BDVisitaCliente.query.filter_by(
+            id=visit_id,
+            cliente_id=cliente_id,
+            codigo_vendedor=codigo_vendedor,
+        ).first()
+        if not visita:
+            return respuesta_error('visit_id no valido para el cliente/vendedor', 400)
 
     # Idempotencia: si ya existe venta con este uuid, retornar la original
     if uuid_origen:
@@ -79,7 +108,15 @@ def registrar_venta():
 
     try:
         fecha = date.fromisoformat(data.get('fecha', str(date.today())))
-        venta = _guardar_venta(codigo_vendedor, cliente_id, fecha, items_data, uuid_origen)
+        venta = _guardar_venta(
+            codigo_vendedor,
+            cliente_id,
+            fecha,
+            items_data,
+            uuid_origen=uuid_origen,
+            turno_id=turno_id,
+            visit_id=visit_id,
+        )
     except ValueError as e:
         return respuesta_error(str(e), 400)
 

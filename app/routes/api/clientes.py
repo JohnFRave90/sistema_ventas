@@ -16,7 +16,8 @@ def _serializar_cliente(c):
         'latitud':       float(c.latitud) if c.latitud else None,
         'longitud':      float(c.longitud) if c.longitud else None,
         'ruta':          c.ruta,
-        'orden_visita':  c.orden_visita
+        'orden_visita':  c.orden_visita,
+        'codigo_vendedor': c.codigo_vendedor
     }
 
 
@@ -25,7 +26,7 @@ def _serializar_cliente(c):
 def listar_clientes():
     codigo_vendedor = get_jwt_identity()
     clientes = Cliente.query.filter_by(
-        codigo_vendedor=codigo_vendedor, activo=True
+        codigo_vendedor=codigo_vendedor
     ).order_by(Cliente.ruta, Cliente.orden_visita).all()
     return respuesta_ok([_serializar_cliente(c) for c in clientes])
 

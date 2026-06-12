@@ -13,6 +13,7 @@ class BDDespacho(db.Model):
     tipo_origen = db.Column(db.String(10), nullable=False)
     despachado = db.Column(db.Boolean, default=False)
     comentarios = db.Column(db.Text)
+    turno_id = db.Column(db.Integer, db.ForeignKey('bd_turnos.id'), nullable=True)
 
     items = db.relationship(
         'BDDespachoItem',
@@ -20,6 +21,7 @@ class BDDespacho(db.Model):
         cascade='all, delete-orphan'
     )
     vendedor = db.relationship('Vendedor')
+    turno = db.relationship('BDTurno')
 
 
 # Modelo por producto despachado

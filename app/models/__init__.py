@@ -27,4 +27,8 @@ from .config_telegram import ConfiguracionTelegram
 
 from .cliente          import Cliente
 from .venta_autoventa  import BDVentaAutoventa, BDVentaAutoventaItem
+from .turno            import BDTurno
+from .visita_cliente   import BDVisitaCliente, BDVisitaExcepcion
+from .ruta_sesion      import BDRutaSesion
+from .turno_ubicacion  import BDTurnoUbicacion
 
