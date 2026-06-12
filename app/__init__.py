@@ -73,6 +73,7 @@ def create_app():
     from app.routes.festivos import festivos_bp
     from app.routes.liquidaciones import liquidaciones_bp
     from app.routes.cambios import cambios_bp
+    from app.routes.reportes import reportes_bp
     from app.routes.reportes_liquidaciones import reportes_liquidaciones_bp
     from app.routes.canastas import bp_canastas
     from app.routes.movimientos import bp_movimientos
@@ -95,6 +96,7 @@ def create_app():
     app.register_blueprint(festivos_bp)
     app.register_blueprint(liquidaciones_bp)
     app.register_blueprint(cambios_bp)
+    app.register_blueprint(reportes_bp)
     app.register_blueprint(reportes_liquidaciones_bp, url_prefix='/reportes/liquidaciones')
     app.register_blueprint(bp_canastas)
     app.register_blueprint(bp_movimientos)
