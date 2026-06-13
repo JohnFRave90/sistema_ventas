@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% block title %}Clientes TaT{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0">Clientes TaT</h4>
+  <div class="d-flex gap-2 align-items-center">
+    <form method="GET" class="d-flex align-items-center gap-2 mb-0">
+      <label class="form-label mb-0 fw-bold small">Vendedor:</label>
+      <select name="vendedor" class="form-select form-select-sm" style="width:220px;" onchange="this.form.submit()">
+        <option value="">Todos</option>
+        {% for v in vendedores %}
+          <option value="{{ v.codigo_vendedor }}" {{ 'selected' if vendedor_filtro == v.codigo_vendedor }}>
+            {{ v.codigo_vendedor }} — {{ v.nombre }}
+          </option>
+        {% endfor %}
+      </select>
+    </form>
+    <a href="{{ url_for('clientes.descargar_plantilla') }}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-file-earmark-arrow-down me-1"></i>Plantilla
+    </a>
+    <a href="{{ url_for('clientes.importar_clientes') }}" class="btn btn-outline-primary btn-sm">
+      <i class="bi bi-file-earmark-arrow-up me-1"></i>Importar
+    </a>
+    <a href="{{ url_for('clientes.exportar_clientes', vendedor=vendedor_filtro) }}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-download me-1"></i>Exportar
+    </a>
+    <a href="{{ url_for('clientes.crear_cliente') }}" class="btn btn-success btn-sm">
+      <i class="bi bi-plus-circle me-1"></i>Nuevo Cliente
+    </a>
+  </div>
+</div>
+
+<!-- Pestañas -->
+<ul class="nav nav-tabs mb-3" id="clientesTabs">
+  <li class="nav-item">
+    <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabLista" type="button">
+      <i class="bi bi-list-ul me-1"></i>Lista
+    </button>
+  </li>
+  <li class="nav-item">
+    <button class="nav-link" id="mapa-tab" data-bs-toggle="tab" data-bs-target="#tabMapa" type="button">
+      <i class="bi bi-map me-1"></i>Mapa
+      <span class="badge bg-secondary ms-1">{{ clientes_geo|length }}</span>
+    </button>
+  </li>
+</ul>
+
+<div class="tab-content">
+
+  <!-- PESTAÑA LISTA -->
+  <div class="tab-pane fade show active" id="tabLista">
+    <table class="table table-bordered table-hover table-sm">
+      <thead class="table-light">
+        <tr>
+          <th>Código</th>
+          <th>Nombre</th>
+          <th>Tienda</th>
+          <th>Teléfono</th>
+          <th>Vendedor</th>
+          <th>Barrio</th>
+          <th>Ciudad</th>
+          <th>Ruta</th>
+          <th>Orden</th>
+          <th>Estado</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in clientes %}
+        <tr>
+          <td class="text-muted small">{{ c.codigo_cliente }}</td>
+          <td>{{ c.nombre }}</td>
+          <td>{{ c.nombre_tienda or '—' }}</td>
+          <td>{{ c.telefono or '—' }}</td>
+          <td class="small">{{ c.codigo_vendedor }}</td>
+          <td>{{ c.barrio or '—' }}</td>
+          <td>{{ c.ciudad or '—' }}</td>
+          <td>{{ c.ruta or '—' }}</td>
+          <td class="text-center">{{ c.orden_visita or '—' }}</td>
+          <td>
+            {% if c.activo %}
+              <span class="badge bg-success">Activo</span>
+            {% else %}
+              <span class="badge bg-danger">Inactivo</span>
+            {% endif %}
+          </td>
+          <td>
+            <a href="{{ url_for('clientes.editar_cliente', id=c.id) }}" class="btn btn-sm btn-warning py-0">Editar</a>
+            <form method="POST" action="{{ url_for('clientes.toggle_cliente', id=c.id) }}" style="display:inline;">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              {% if c.activo %}
+                <button type="submit" class="btn btn-sm btn-outline-danger py-0"
+                        onclick="return confirm('¿Desactivar este cliente?')">Desactivar</button>
+              {% else %}
+                <button type="submit" class="btn btn-sm btn-outline-success py-0">Activar</button>
+              {% endif %}
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="11" class="text-center text-muted">No hay clientes registrados.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- PESTAÑA MAPA -->
+  <div class="tab-pane fade" id="tabMapa">
+    {% if clientes_geo %}
+      <div id="map" style="height:600px; border-radius:6px;"></div>
+    {% else %}
+      <div class="alert alert-info">Ningún cliente en este filtro tiene coordenadas registradas.</div>
+    {% endif %}
+  </div>
+
+</div>
+
+{% if clientes_geo %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const clientesGeo = {{ clientes_geo | tojson }};
+let mapInstance = null;
+
+function initMap() {
+  mapInstance = L.map('map').setView([7.1193, -73.1227], 12);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors'
+  }).addTo(mapInstance);
+
+  const bounds = [];
+  clientesGeo.forEach(function(c) {
+    const marker = L.marker([c.lat, c.lng]).addTo(mapInstance);
+    marker.bindPopup(
+      '<strong>' + c.nombre + '</strong><br>' +
+      (c.nombre_tienda ? '🏬 ' + c.nombre_tienda + '<br>' : '') +
+      (c.telefono ? '📞 ' + c.telefono + '<br>' : '') +
+      (c.direccion ? '📍 ' + c.direccion + '<br>' : '') +
+      (c.barrio ? '🏘️ ' + c.barrio + '<br>' : '') +
+      '👤 ' + c.vendedor
+    );
+    bounds.push([c.lat, c.lng]);
+  });
+
+  if (bounds.length > 0) {
+    mapInstance.fitBounds(bounds, { padding: [30, 30] });
+  }
+}
+
+// Inicializar solo cuando la pestaña es visible (Leaflet falla si el div está oculto)
+document.getElementById('mapa-tab').addEventListener('shown.bs.tab', function() {
+  if (!mapInstance) {
+    initMap();
+  } else {
+    mapInstance.invalidateSize();
+  }
+});
+</script>
+{% endif %}
+{% endblock %}

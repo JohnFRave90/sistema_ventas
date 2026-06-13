@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Editar Cliente{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-7">
+    <h4 class="mb-4">Editar Cliente — {{ cliente.codigo_cliente }}</h4>
+    <form method="POST" class="card p-4 shadow-sm bg-light">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <div class="row g-3">
+        <div class="col-12">
+          <label class="form-label fw-bold">Nombre <span class="text-danger">*</span></label>
+          <input type="text" name="nombre" class="form-control" maxlength="100"
+                 value="{{ cliente.nombre }}" required>
+        </div>
+        <div class="col-12">
+          <label class="form-label">Nombre de la tienda</label>
+          <input type="text" name="nombre_tienda" class="form-control" maxlength="100"
+                 value="{{ cliente.nombre_tienda or '' }}">
+        </div>
+        <div class="col-12">
+          <label class="form-label fw-bold">Vendedor <span class="text-danger">*</span></label>
+          <select name="codigo_vendedor" class="form-select" required>
+            <option value="">— Selecciona —</option>
+            {% for v in vendedores %}
+              <option value="{{ v.codigo_vendedor }}"
+                {{ 'selected' if cliente.codigo_vendedor == v.codigo_vendedor }}>
+                {{ v.codigo_vendedor }} — {{ v.nombre }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Teléfono</label>
+          <input type="text" name="telefono" class="form-control" maxlength="20"
+                 value="{{ cliente.telefono or '' }}">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">WhatsApp</label>
+          <input type="text" name="whatsapp" class="form-control" maxlength="20"
+                 value="{{ cliente.whatsapp or '' }}">
+        </div>
+        <div class="col-12">
+          <label class="form-label">Dirección</label>
+          <input type="text" name="direccion" class="form-control" maxlength="200"
+                 value="{{ cliente.direccion or '' }}">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Barrio</label>
+          <input type="text" name="barrio" class="form-control" maxlength="100"
+                 value="{{ cliente.barrio or '' }}">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Ciudad</label>
+          <input type="text" name="ciudad" class="form-control" maxlength="100"
+                 value="{{ cliente.ciudad or '' }}">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Latitud</label>
+          <input type="number" step="0.00000001" name="latitud" class="form-control"
+                 value="{{ cliente.latitud or '' }}">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Longitud</label>
+          <input type="number" step="0.00000001" name="longitud" class="form-control"
+                 value="{{ cliente.longitud or '' }}">
+        </div>
+        <div class="col-md-8">
+          <label class="form-label">Ruta</label>
+          <input type="text" name="ruta" class="form-control" maxlength="50"
+                 value="{{ cliente.ruta or '' }}">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Orden de visita</label>
+          <input type="number" name="orden_visita" class="form-control" min="1"
+                 value="{{ cliente.orden_visita or '' }}">
+        </div>
+        <div class="col-12">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="activo" id="activo"
+                   {{ 'checked' if cliente.activo }}>
+            <label class="form-check-label" for="activo">Cliente activo</label>
+          </div>
+        </div>
+      </div>
+
+      <div class="d-flex gap-2 mt-4">
+        <button type="submit" class="btn btn-warning">Guardar Cambios</button>
+        <a href="{{ url_for('clientes.listar_clientes') }}" class="btn btn-secondary">Cancelar</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

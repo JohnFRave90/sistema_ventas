@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+{% block title %}Nueva Autoventa{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-8">
+    <h4 class="mb-4">Nueva Autoventa TaT</h4>
+
+    <form method="POST" id="formAutoventa" class="card p-4 shadow-sm bg-light">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <div class="row g-3 mb-4">
+        <div class="col-md-5">
+          <label class="form-label fw-bold">Vendedor <span class="text-danger">*</span></label>
+          <select name="codigo_vendedor" class="form-select" required
+                  onchange="window.location.href='?vendedor='+this.value">
+            <option value="">— Selecciona —</option>
+            {% for v in vendedores %}
+              <option value="{{ v.codigo_vendedor }}" {{ 'selected' if vendedor_sel == v.codigo_vendedor }}>
+                {{ v.codigo_vendedor }} — {{ v.nombre }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-5">
+          <label class="form-label fw-bold">Cliente <span class="text-danger">*</span></label>
+          <select name="cliente_id" class="form-select" required
+                  {{ 'disabled' if not clientes }}>
+            <option value="">— Selecciona vendedor primero —</option>
+            {% for c in clientes %}
+              <option value="{{ c.id }}">{{ c.nombre }}{% if c.ruta %} ({{ c.ruta }}){% endif %}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label fw-bold">Fecha</label>
+          <input type="date" name="fecha" class="form-control"
+                 value="{{ request.form.get('fecha') or fecha_hoy }}">
+        </div>
+      </div>
+
+      <h6 class="mb-2">Productos</h6>
+      <table class="table table-sm table-bordered" id="tablaProductos">
+        <thead class="table-light">
+          <tr>
+            <th>Producto</th>
+            <th style="width:110px">Cantidad</th>
+            <th style="width:110px" class="text-end">Subtotal</th>
+            <th style="width:44px"></th>
+          </tr>
+        </thead>
+        <tbody id="filasProductos">
+          <tr class="fila-producto">
+            <td>
+              <select name="producto_cod" class="form-select form-select-sm sel-producto" required
+                      onchange="actualizarFila(this)">
+                <option value="">— Selecciona —</option>
+                {% for p in productos %}
+                  <option value="{{ p.codigo }}" data-precio="{{ p.precio }}">
+                    {{ p.nombre }} (${{ '{:,.0f}'.format(p.precio) }})
+                  </option>
+                {% endfor %}
+              </select>
+            </td>
+            <td>
+              <input type="number" name="cantidad" class="form-control form-control-sm inp-cantidad"
+                     min="1" value="1" required oninput="actualizarFila(this)">
+            </td>
+            <td class="text-end fw-bold subtotal-celda">$0</td>
+            <td class="text-center">
+              <button type="button" class="btn btn-sm btn-outline-danger py-0"
+                      onclick="eliminarFila(this)">✕</button>
+            </td>
+          </tr>
+        </tbody>
+        <tfoot>
+          <tr class="table-light">
+            <td colspan="2" class="text-end fw-bold">Total</td>
+            <td class="text-end fw-bold text-success fs-6" id="totalGeneral">$0</td>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
+
+      <button type="button" class="btn btn-outline-secondary btn-sm mb-3"
+              onclick="agregarFila()">
+        <i class="bi bi-plus me-1"></i>Agregar producto
+      </button>
+
+      <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-success">Guardar Autoventa</button>
+        <a href="{{ url_for('tat_pedidos.listar_tat_pedidos') }}" class="btn btn-secondary">Cancelar</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+// Mapa código → precio
+const precios = {
+  {% for p in productos %}
+  "{{ p.codigo }}": {{ p.precio }},
+  {% endfor %}
+};
+
+const opcionesProducto = `{% for p in productos %}<option value="{{ p.codigo }}" data-precio="{{ p.precio }}">{{ p.nombre }} (${{ '{:,.0f}'.format(p.precio) }})</option>{% endfor %}`;
+
+function formatPesos(n) {
+  return '$' + Math.round(n).toLocaleString('es-CO');
+}
+
+function actualizarFila(el) {
+  const fila = el.closest('tr');
+  const sel = fila.querySelector('.sel-producto');
+  const inp = fila.querySelector('.inp-cantidad');
+  const celda = fila.querySelector('.subtotal-celda');
+  const cod = sel.value;
+  const cant = parseInt(inp.value) || 0;
+  const precio = precios[cod] || 0;
+  celda.textContent = formatPesos(precio * cant);
+  recalcularTotal();
+}
+
+function recalcularTotal() {
+  let total = 0;
+  document.querySelectorAll('.fila-producto').forEach(function(fila) {
+    const sel = fila.querySelector('.sel-producto');
+    const inp = fila.querySelector('.inp-cantidad');
+    const cod = sel ? sel.value : '';
+    const cant = parseInt(inp ? inp.value : 0) || 0;
+    total += (precios[cod] || 0) * cant;
+  });
+  document.getElementById('totalGeneral').textContent = formatPesos(total);
+}
+
+function agregarFila() {
+  const tbody = document.getElementById('filasProductos');
+  const fila = document.createElement('tr');
+  fila.className = 'fila-producto';
+  fila.innerHTML = `
+    <td>
+      <select name="producto_cod" class="form-select form-select-sm sel-producto" required
+              onchange="actualizarFila(this)">
+        <option value="">— Selecciona —</option>
+        ${opcionesProducto}
+      </select>
+    </td>
+    <td>
+      <input type="number" name="cantidad" class="form-control form-control-sm inp-cantidad"
+             min="1" value="1" required oninput="actualizarFila(this)">
+    </td>
+    <td class="text-end fw-bold subtotal-celda">$0</td>
+    <td class="text-center">
+      <button type="button" class="btn btn-sm btn-outline-danger py-0" onclick="eliminarFila(this)">✕</button>
+    </td>`;
+  tbody.appendChild(fila);
+}
+
+function eliminarFila(btn) {
+  const filas = document.querySelectorAll('.fila-producto');
+  if (filas.length > 1) {
+    btn.closest('tr').remove();
+    recalcularTotal();
+  }
+}
+</script>
+{% endblock %}

@@ -78,6 +78,8 @@ def create_app():
     from app.routes.movimientos import bp_movimientos
     from app.routes.configuracion import config_bp
     from app.routes.dialogflow_webhook import dialogflow_bp
+    from app.routes.clientes import clientes_bp
+    from app.routes.tat_pedidos import tat_pedidos_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
@@ -100,6 +102,8 @@ def create_app():
     app.register_blueprint(bp_movimientos)
     app.register_blueprint(config_bp)
     app.register_blueprint(dialogflow_bp)
+    app.register_blueprint(clientes_bp)
+    app.register_blueprint(tat_pedidos_bp)
 
     from app.routes.api import api_bp
     app.register_blueprint(api_bp, url_prefix='/api/v1')

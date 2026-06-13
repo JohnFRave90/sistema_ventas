@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Pedidos TaT{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0">Pedidos TaT (Autoventas)</h4>
+  <a href="{{ url_for('tat_pedidos.crear_tat_pedido') }}" class="btn btn-success btn-sm">
+    <i class="bi bi-plus-circle me-1"></i>Nueva Autoventa
+  </a>
+</div>
+
+<!-- Filtros -->
+<form method="GET" class="row g-2 align-items-end mb-3">
+  <div class="col-auto">
+    <label class="form-label small fw-bold mb-1">Vendedor</label>
+    <select name="vendedor" class="form-select form-select-sm" style="width:220px;">
+      <option value="">Todos</option>
+      {% for v in vendedores %}
+        <option value="{{ v.codigo_vendedor }}" {{ 'selected' if vendedor_filtro == v.codigo_vendedor }}>
+          {{ v.codigo_vendedor }} — {{ v.nombre }}
+        </option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-auto">
+    <label class="form-label small fw-bold mb-1">Fecha</label>
+    <input type="date" name="fecha" class="form-control form-control-sm" value="{{ fecha_filtro }}">
+  </div>
+  <div class="col-auto">
+    <button type="submit" class="btn btn-primary btn-sm">Filtrar</button>
+  </div>
+</form>
+
+<table class="table table-bordered table-hover table-sm">
+  <thead class="table-light">
+    <tr>
+      <th>Consecutivo</th>
+      <th>Cliente</th>
+      <th>Vendedor</th>
+      <th>Fecha</th>
+      <th class="text-end">Total</th>
+      <th class="text-center">Detalle</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for av in autoventas.items %}
+    <tr>
+      <td><span class="fw-bold text-primary">{{ av.consecutivo }}</span></td>
+      <td>{{ av.cliente.nombre if av.cliente else '—' }}</td>
+      <td class="small">{{ av.codigo_vendedor }}</td>
+      <td>{{ av.fecha }}</td>
+      <td class="text-end text-success fw-bold">${{ '{:,.0f}'.format(av.total) }}</td>
+      <td class="text-center">
+        <a href="{{ url_for('tat_pedidos.detalle_tat_pedido', id=av.id) }}"
+           class="btn btn-sm btn-outline-primary py-0">Ver</a>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="6" class="text-center text-muted">No hay autoventas para este filtro.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% if autoventas.pages > 1 %}
+<nav>
+  <ul class="pagination pagination-sm">
+    {% for p in autoventas.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+      {% if p %}
+        <li class="page-item {{ 'active' if p == autoventas.page }}">
+          <a class="page-link" href="?vendedor={{ vendedor_filtro }}&fecha={{ fecha_filtro }}&page={{ p }}">{{ p }}</a>
+        </li>
+      {% else %}
+        <li class="page-item disabled"><span class="page-link">…</span></li>
+      {% endif %}
+    {% endfor %}
+  </ul>
+</nav>
+{% endif %}
+{% endblock %}
