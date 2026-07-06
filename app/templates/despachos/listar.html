@@ -38,6 +38,7 @@
           <th>Origen</th>
           <th>Fecha</th>
           <th>Vendedor</th>
+          <th>Estado</th>
           <th>Total</th>
           <th>Comentarios</th>
           <th>Acciones</th>
@@ -49,10 +50,17 @@
           <td>{{ d.codigo_origen }}</td>
           <td>{{ d.fecha.strftime('%Y-%m-%d') }}</td>
           <td>{{ vendedores[d.vendedor_cod] }}</td>
+          <td>
+            {% set badge = {'borrador':'secondary','preparado':'info','en_ruta':'primary','cerrado':'success'} %}
+            <span class="badge bg-{{ badge.get(estados[d.id], 'secondary') }}">{{ estados[d.id]|replace('_',' ')|title }}</span>
+          </td>
           <td><strong>$</strong>{{ "{:,.0f}".format(totales[d.id]) }}</td>
           <td>{{ d.comentarios or '-' }}</td>
           <td>
             <div class="d-flex gap-2">
+              <a href="{{ url_for('despachos.diferencias_despacho', did=d.id) }}" class="btn btn-outline-info btn-sm" title="Ver diferencias">
+                <i class="bi bi-bar-chart-steps"></i>
+              </a>
               <a href="{{ url_for('despachos.export_pdf_despacho', did=d.id) }}" class="btn btn-outline-secondary btn-sm" title="Exportar PDF">
                 <i class="bi bi-file-earmark-pdf"></i>
               </a>
@@ -72,7 +80,7 @@
         </tr>
         {% else %}
         <tr>
-          <td colspan="6" class="text-center">No hay despachos registrados.</td>
+          <td colspan="7" class="text-center">No hay despachos registrados.</td>
         </tr>
         {% endfor %}
       </tbody>

@@ -9,6 +9,7 @@ class Cliente(db.Model):
     id             = db.Column(db.Integer, primary_key=True)
     codigo_cliente = db.Column(db.String(20), unique=True, nullable=False)
     nombre         = db.Column(db.String(100), nullable=False)
+    # Migrado desde sistema_ventas1: requiere ALTER TABLE (ver sql/migrates/add_nombre_tienda_barrio_clientes.sql)
     nombre_tienda  = db.Column(db.String(100))
     telefono       = db.Column(db.String(20))
     whatsapp       = db.Column(db.String(20))

@@ -18,6 +18,10 @@ def crear_devolucion():
     items_data = data.get('items', [])
     uuid_origen = data.get('uuid')
 
+    # Tipo de devolución: 'vendedor' (sobrante de ruta) o 'cliente' (nota crédito).
+    tipo_raw = (data.get('tipo_devolucion') or 'vendedor').strip().lower()
+    tipo_devolucion = tipo_raw if tipo_raw in ('vendedor', 'cliente') else 'vendedor'
+
     # turno_id es opcional; si viene pero no corresponde al vendedor, lo ignoramos
     # (no rechazamos la devolución para no perder la operación al sincronizar).
     turno_id = data.get('turno_id')
@@ -48,6 +52,7 @@ def crear_devolucion():
         codigo_vendedor=codigo_vendedor,
         fecha=date.today(),
         turno_id=turno_id,
+        tipo_devolucion=tipo_devolucion,
         comentarios=data.get('comentarios', ''),
         usos=0,
         uuid_origen=uuid_origen

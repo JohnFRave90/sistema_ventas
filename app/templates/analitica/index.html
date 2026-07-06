@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}Analítica{% endblock %}
+
+{% block content %}
+<style>
+  .kpi { border:1px solid #e5e7eb; border-radius:12px; padding:14px 16px; height:100%;
+    display:flex; align-items:center; gap:12px; background:#fff; }
+  .kpi .ic { width:42px; height:42px; border-radius:10px; display:flex; align-items:center;
+    justify-content:center; font-size:20px; color:#fff; flex:0 0 auto; }
+  .kpi .val { font-size:1.5rem; font-weight:700; line-height:1; }
+  .kpi .lbl { font-size:.72rem; color:#6b7280; text-transform:uppercase; letter-spacing:.03em; }
+  .chart-card { border:1px solid #e5e7eb; border-radius:12px; padding:14px; background:#fff; height:100%; }
+</style>
+
+<div class="container-fluid px-2 py-3">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h4 class="mb-0"><i class="bi bi-graph-up-arrow text-primary me-1"></i> Analítica del día</h4>
+    <span class="text-muted small">{{ data.fecha }}</span>
+  </div>
+
+  <!-- Filtros -->
+  <form method="get" class="row g-2 mb-3">
+    <div class="col-6 col-md-3">
+      <label class="form-label small mb-0">Fecha</label>
+      <input type="date" name="fecha" class="form-control form-control-sm" value="{{ filtro_fecha }}">
+    </div>
+    <div class="col-6 col-md-3">
+      <label class="form-label small mb-0">Vendedor</label>
+      <select name="vendedor" id="selVendedor" class="form-select form-select-sm" autocomplete="off">
+        <option value="">Todos</option>
+        {% for v in vendedores %}
+        <option value="{{ v.codigo_vendedor }}" {% if filtro_vendedor == v.codigo_vendedor %}selected{% endif %}>{{ v.nombre }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-12 col-md-2 d-grid align-self-end">
+      <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-funnel me-1"></i>Aplicar</button>
+    </div>
+  </form>
+
+  {% macro kpi(icono, color, titulo, valor) %}
+  <div class="col-6 col-md-3 mb-2">
+    <div class="kpi">
+      <div class="ic" style="background:{{ color }}"><i class="bi {{ icono }}"></i></div>
+      <div><div class="val">{{ valor }}</div><div class="lbl">{{ titulo }}</div></div>
+    </div>
+  </div>
+  {% endmacro %}
+
+  <div class="row g-2">
+    {{ kpi('bi-cash-coin', '#22c55e', 'Total vendido', '$' ~ '{:,.0f}'.format(data.total_vendido)) }}
+    {{ kpi('bi-check-circle', '#3b82f6', 'Clientes visitados', data.clientes_visitados) }}
+    {{ kpi('bi-hourglass-split', '#6b7280', 'Clientes pendientes', data.clientes_pendientes) }}
+    {{ kpi('bi-exclamation-triangle', '#f59e0b', 'Excepciones', data.excepciones) }}
+    {{ kpi('bi-arrow-counterclockwise', '#ef4444', 'Devoluciones (uds)', data.devoluciones) }}
+    {{ kpi('bi-arrow-left-right', '#06b6d4', 'Cambios ($)', '$' ~ '{:,.0f}'.format(data.cambios)) }}
+    {{ kpi('bi-box-seam', '#0ea5e9', 'Inv. despachado', data.inventario_despachado) }}
+    {{ kpi('bi-bag-check', '#8b5cf6', 'Inv. vendido', data.inventario_vendido) }}
+    {{ kpi('bi-box-arrow-in-down', '#ef4444', 'Inv. devuelto', data.inventario_devuelto) }}
+    {{ kpi('bi-clipboard-check', '#16a34a', 'Inv. restante estimado', data.inventario_restante_estimado) }}
+  </div>
+
+  <!-- Gráficas -->
+  <div class="row g-3 mt-1">
+    <div class="col-12 col-lg-6"><div class="chart-card">
+      <h6 class="mb-2"><i class="bi bi-bar-chart me-1"></i>Ventas por vendedor</h6>
+      <canvas id="chartVendedores" height="160"></canvas>
+    </div></div>
+    <div class="col-12 col-lg-6"><div class="chart-card">
+      <h6 class="mb-2"><i class="bi bi-trophy me-1"></i>Productos más vendidos</h6>
+      <canvas id="chartVendidos" height="160"></canvas>
+    </div></div>
+    <div class="col-12 col-lg-6"><div class="chart-card">
+      <h6 class="mb-2"><i class="bi bi-arrow-counterclockwise me-1"></i>Productos más devueltos</h6>
+      <canvas id="chartDevueltos" height="160"></canvas>
+    </div></div>
+  </div>
+
+  <div class="alert alert-light border small mt-3">
+    <strong>Notas:</strong> ventas tomadas de autoventa (lo que registra la app).
+    Inventario restante = despachado − vendido + devuelto (los cambios no tienen
+    granularidad por producto en <code>BD_CAMBIO</code>, por eso no se restan a nivel unidades).
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
+<link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+  if (window.TomSelect) { new TomSelect('#selVendedor', { create:false, allowEmptyOption:true }); }
+
+  const ventasVend = {{ breakdown.ventas_por_vendedor | tojson }};
+  const prodVendidos = {{ breakdown.productos_vendidos | tojson }};
+  const prodDevueltos = {{ breakdown.productos_devueltos | tojson }};
+
+  function barChart(id, labels, data, label, color) {
+    const el = document.getElementById(id);
+    if (!el || !window.Chart) return;
+    new Chart(el, {
+      type: 'bar',
+      data: { labels: labels, datasets: [{ label: label, data: data, backgroundColor: color, borderRadius: 4 }] },
+      options: { responsive:true, plugins:{ legend:{ display:false } },
+        scales:{ y:{ beginAtZero:true } } }
+    });
+  }
+
+  barChart('chartVendedores',
+    ventasVend.map(function(x){ return x.nombre; }),
+    ventasVend.map(function(x){ return x.total; }),
+    'Ventas ($)', '#22c55e');
+  barChart('chartVendidos',
+    prodVendidos.map(function(x){ return x.nombre; }),
+    prodVendidos.map(function(x){ return x.cantidad; }),
+    'Unidades', '#8b5cf6');
+  barChart('chartDevueltos',
+    prodDevueltos.map(function(x){ return x.nombre; }),
+    prodDevueltos.map(function(x){ return x.cantidad; }),
+    'Unidades', '#ef4444');
+</script>
+{% endblock %}

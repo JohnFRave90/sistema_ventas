@@ -1,5 +1,15 @@
 <div class="list-group list-group-flush">
 
+  <!-- Operación: Mapa y Analítica -->
+  {% if current_user.rol in ['administrador', 'semiadmin'] %}
+  <a href="{{ url_for('mapa.ver_mapa') }}" class="list-group-item list-group-item-action fw-bold">
+    <i class="bi bi-geo-alt me-1"></i> Mapa de rutas
+  </a>
+  <a href="{{ url_for('analitica.ver_analitica') }}" class="list-group-item list-group-item-action fw-bold">
+    <i class="bi bi-graph-up me-1"></i> Analítica
+  </a>
+  {% endif %}
+
   <!-- Pedidos -->
   <a class="list-group-item list-group-item-action fw-bold" data-bs-toggle="collapse" href="#collapsePedidos">
     <i class="bi bi-cart-plus me-1"></i> Pedidos

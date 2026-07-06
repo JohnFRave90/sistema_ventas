@@ -11,9 +11,14 @@ class BDDespacho(db.Model):
     vendedor_cod = db.Column(db.String(25), db.ForeignKey('vendedores.codigo_vendedor'), nullable=False)
     codigo_origen = db.Column(db.String(20), nullable=False)
     tipo_origen = db.Column(db.String(10), nullable=False)
+    # Idempotencia offline: evita despachos duplicados al reintentar la sincronización.
+    uuid_origen = db.Column(db.String(36), unique=True, nullable=True)
     despachado = db.Column(db.Boolean, default=False)
     comentarios = db.Column(db.Text)
     turno_id = db.Column(db.Integer, db.ForeignKey('bd_turnos.id'), nullable=True)
+    # Timestamp de creación: permite agrupar el "lote de cargue" actual y NO sumar
+    # despachos pendientes de días anteriores. server_default = momento del INSERT.
+    created_at = db.Column(db.DateTime, server_default=db.func.now())
 
     items = db.relationship(
         'BDDespachoItem',

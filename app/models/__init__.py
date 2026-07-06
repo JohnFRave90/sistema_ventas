@@ -17,7 +17,7 @@ from .ventas           import BDVenta
 from .venta_item       import BDVentaItem
 from .despachos        import BDDespacho, BDDespachoItem
 
-from .cambio            import BD_CAMBIO
+from .cambio            import BD_CAMBIO, BDCambio, BDCambioItem
 from .liquidacion       import BD_LIQUIDACION
 from .festivo           import Festivo
 

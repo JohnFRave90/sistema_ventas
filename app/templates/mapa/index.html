@@ -1,0 +1,230 @@
+{% extends "base.html" %}
+{% block title %}Mapa de Rutas{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
+<style>
+  .map-marker { display:flex; align-items:center; justify-content:center;
+    width:28px; height:28px; border-radius:50%; color:#fff; border:2px solid #fff;
+    box-shadow:0 1px 4px rgba(0,0,0,.4); font-size:14px; }
+  .kpi-card { border:1px solid #e5e7eb; border-radius:10px; padding:12px 14px; height:100%; }
+  .kpi-card .kpi-val { font-size:1.4rem; font-weight:700; line-height:1; }
+  .kpi-card .kpi-lbl { font-size:.72rem; color:#6b7280; text-transform:uppercase; letter-spacing:.03em; }
+  .leaflet-popup-content { margin:10px 12px; }
+  #mapa { height:68vh; width:100%; border-radius:10px; }
+  @media (max-width: 768px){ #mapa { height:55vh; } }
+</style>
+
+<div class="container-fluid px-2 py-3">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h4 class="mb-0"><i class="bi bi-geo-alt-fill text-primary me-1"></i> Mapa de Rutas</h4>
+    <span class="text-muted small">{{ data.fecha }}</span>
+  </div>
+
+  <!-- Resumen rápido (calculado de los clientes visibles) -->
+  {% set n_visitados = data.clientes | selectattr('estado','equalto','visitado') | list | length %}
+  {% set n_pendientes = data.clientes | selectattr('estado','equalto','pendiente') | list | length %}
+  {% set n_excepcion = data.clientes | selectattr('estado','equalto','excepcion') | list | length %}
+  {% set total_ventas = data.clientes | sum(attribute='venta') %}
+  <div class="row g-2 mb-3">
+    <div class="col-6 col-md-3"><div class="kpi-card"><div class="kpi-lbl"><i class="bi bi-people me-1"></i>Clientes</div><div class="kpi-val">{{ data.clientes|length }}</div></div></div>
+    <div class="col-6 col-md-3"><div class="kpi-card"><div class="kpi-lbl"><i class="bi bi-check-circle me-1 text-success"></i>Visitados</div><div class="kpi-val text-success">{{ n_visitados }}</div></div></div>
+    <div class="col-6 col-md-3"><div class="kpi-card"><div class="kpi-lbl"><i class="bi bi-hourglass-split me-1 text-secondary"></i>Pendientes</div><div class="kpi-val">{{ n_pendientes }}</div></div></div>
+    <div class="col-6 col-md-3"><div class="kpi-card"><div class="kpi-lbl"><i class="bi bi-exclamation-triangle me-1 text-warning"></i>Excepciones</div><div class="kpi-val text-warning">{{ n_excepcion }}</div></div></div>
+  </div>
+
+  <!-- Filtros (server-side por GET; el estado filtra en cliente) -->
+  <form method="get" class="row g-2 mb-3">
+    <div class="col-6 col-md-3">
+      <label class="form-label small mb-0">Fecha</label>
+      <input type="date" name="fecha" class="form-control form-control-sm" value="{{ filtro_fecha }}">
+    </div>
+    <div class="col-6 col-md-3">
+      <label class="form-label small mb-0">Vendedor</label>
+      <select name="vendedor" id="selVendedor" class="form-select form-select-sm" autocomplete="off">
+        <option value="">Todos</option>
+        {% for v in vendedores %}
+        <option value="{{ v.codigo_vendedor }}" {% if filtro_vendedor == v.codigo_vendedor %}selected{% endif %}>{{ v.nombre }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-6 col-md-2">
+      <label class="form-label small mb-0">Ruta</label>
+      <select name="ruta" id="selRuta" class="form-select form-select-sm" autocomplete="off">
+        <option value="">Todas</option>
+        {% for r in rutas %}
+        <option value="{{ r }}" {% if filtro_ruta == r %}selected{% endif %}>{{ r }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-6 col-md-2">
+      <label class="form-label small mb-0">Turno</label>
+      <select name="turno_id" id="selTurno" class="form-select form-select-sm" autocomplete="off">
+        <option value="">Todos</option>
+        {% for t in turnos %}
+        <option value="{{ t.id }}" {% if filtro_turno_id and filtro_turno_id|string == t.id|string %}selected{% endif %}>
+          Turno #{{ t.id }} · {{ t.fecha }} · T{{ t.turno_numero }} · {{ t.estado }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-12 col-md-2 d-grid align-self-end">
+      <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-funnel me-1"></i>Aplicar</button>
+    </div>
+  </form>
+
+  <div class="row g-2 mb-2 align-items-center">
+    <div class="col-6 col-md-3">
+      <select id="filtroEstado" class="form-select form-select-sm" autocomplete="off">
+        <option value="">Todos los estados</option>
+        <option value="visitado">Visitado / venta</option>
+        <option value="pendiente">Pendiente</option>
+        <option value="excepcion">Excepción</option>
+      </select>
+    </div>
+    <div class="col-12 col-md-9 small">
+      <span class="badge" style="background:#9ca3af">Pendiente</span>
+      <span class="badge" style="background:#22c55e">Visitado / venta</span>
+      <span class="badge" style="background:#f97316">Excepción</span>
+      <span class="badge bg-dark"><i class="bi bi-truck me-1"></i>Vendedor (color propio)</span>
+    </div>
+  </div>
+
+  <div id="mapa"></div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
+<script>
+  const clientes = {{ data.clientes | tojson }};
+  const vendedoresMapa = {{ data.vendedores | tojson }};
+
+  // === DIAGNÓSTICO TEMPORAL (quitar tras resolver el mapa vacío) ===
+  console.log('[MAPA DIAG] CLIENTES RECIBIDOS por el navegador =', clientes.length);
+  console.log('[MAPA DIAG] VENDEDORES RECIBIDOS =', vendedoresMapa);
+  console.log('[MAPA DIAG] TOTAL VENDEDORES =', vendedoresMapa.length);
+
+  // Selects con buscador.
+  // Jerarquía de negocio: al cambiar el VENDEDOR, las rutas y turnos se reconstruyen
+  // SOLO con los de ese vendedor (o todos si se elige "Todos"). Nada depende del usuario.
+  const rutasPorVendedor = {{ rutas_por_vendedor | tojson }};
+  const rutasAll = {{ rutas_all | tojson }};
+  const turnosPorVendedor = {{ turnos_por_vendedor | tojson }};
+  const turnosAll = {{ turnos_all | tojson }};
+
+  if (window.TomSelect) {
+    const tsVendedor = new TomSelect('#selVendedor', { create:false, allowEmptyOption:true });
+    new TomSelect('#filtroEstado', { create:false, allowEmptyOption:true });
+    const tsRuta = new TomSelect('#selRuta', { create:false, allowEmptyOption:true });
+    const tsTurno = new TomSelect('#selTurno', { create:false, allowEmptyOption:true });
+
+    tsVendedor.on('change', function (val) {
+      // Rutas dependientes del vendedor.
+      const rutas = val ? (rutasPorVendedor[val] || []) : rutasAll;
+      tsRuta.clear(true); tsRuta.clearOptions();
+      tsRuta.addOption({ value:'', text:'Todas' });
+      rutas.forEach(function (r) { tsRuta.addOption({ value:r, text:r }); });
+      tsRuta.refreshOptions(false);
+
+      // Turnos dependientes del vendedor.
+      const turnos = val ? (turnosPorVendedor[val] || []) : turnosAll;
+      tsTurno.clear(true); tsTurno.clearOptions();
+      tsTurno.addOption({ value:'', text:'Todos' });
+      turnos.forEach(function (t) {
+        tsTurno.addOption({ value:String(t.id),
+          text:'Turno #'+t.id+' · '+t.fecha+' · T'+t.turno_numero+' · '+t.estado });
+      });
+      tsTurno.refreshOptions(false);
+    });
+  }
+
+  const ESTADO_ICON = { visitado:'bi-check-lg', pendiente:'bi-hourglass-split', excepcion:'bi-exclamation-triangle-fill' };
+  function makeIcon(color, glyph) {
+    return L.divIcon({
+      className:'', html:'<div class="map-marker" style="background:'+color+'"><i class="bi '+glyph+'"></i></div>',
+      iconSize:[28,28], iconAnchor:[14,14], popupAnchor:[0,-14]
+    });
+  }
+
+  const map = L.map('mapa').setView([7.1193, -73.1227], 13);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19, attribution:'&copy; OpenStreetMap' }).addTo(map);
+
+  const bounds = [];
+  const markers = [];  // {marker, estado}
+
+  clientes.forEach(function (c) {
+    if (c.lat == null || c.lng == null) return;
+    const glyph = ESTADO_ICON[c.estado] || 'bi-geo-alt-fill';
+    const marker = L.marker([c.lat, c.lng], { icon: makeIcon(c.color, glyph) }).addTo(map);
+    const ventaTxt = c.venta ? ('$' + Number(c.venta).toLocaleString()) : '—';
+    const llegada = c.hora_llegada ? new Date(c.hora_llegada).toLocaleString() : '—';
+    marker.bindPopup(
+      '<div style="min-width:220px">' +
+        '<div class="fw-bold mb-1">' + (c.nombre_tienda || c.nombre) + '</div>' +
+        (c.nombre_tienda ? '<div class="text-muted small mb-1">'+c.nombre+'</div>' : '') +
+        '<div class="small"><i class="bi bi-geo-alt me-1"></i>' + (c.direccion || '—') + (c.barrio ? ' · '+c.barrio : '') + '</div>' +
+        '<div class="small"><span class="badge" style="background:'+c.color+'">'+c.estado+'</span></div>' +
+        '<hr class="my-1">' +
+        '<div class="small"><i class="bi bi-clock me-1"></i>Llegada: ' + llegada + '</div>' +
+        '<div class="small"><i class="bi bi-cash-coin me-1"></i>Venta: ' + ventaTxt + '</div>' +
+        '<div class="small"><i class="bi bi-person-badge me-1"></i>Vendedor: ' + (c.vendedor || '—') + '</div>' +
+      '</div>'
+    );
+    markers.push({ marker:marker, estado:c.estado });
+    bounds.push([c.lat, c.lng]);
+  });
+
+  // === DIAGNÓSTICO TEMPORAL (quitar tras resolver el mapa vacío) ===
+  console.log('[MAPA DIAG] MARCADORES creados en el mapa =', markers.length);
+  const sinCoords = clientes.filter(function(c){ return c.lat == null || c.lng == null; }).length;
+  if (sinCoords > 0) console.log('[MAPA DIAG] clientes recibidos SIN lat/lng =', sinCoords);
+
+  // --- Vendedores: recorrido por turno (mismo color) + marcador de última ubicación ---
+  vendedoresMapa.forEach(function (v) {
+    console.log('[MAPA DIAG] RENDER VENDEDOR', v.codigo, 'ultima=', v.ultima);  // diag temporal
+    // Recorridos (uno por turno) — solo presentes cuando hay vendedor/turno enfocado.
+    (v.recorridos || []).forEach(function (coords) {
+      if (coords.length > 1) {
+        L.polyline(coords, { color: v.color, weight: 3, opacity: 0.75 }).addTo(map);
+        // Marcador de inicio del recorrido (Regla 5: inicio/fin claros).
+        L.circleMarker(coords[0], { radius:5, color:'#fff', weight:2, fillColor:v.color, fillOpacity:1 })
+          .addTo(map).bindTooltip('Inicio', { direction:'top' });
+        coords.forEach(function (p){ bounds.push(p); });
+      }
+    });
+
+    // Última ubicación conocida del vendedor (camión, color del vendedor).
+    const u = v.ultima;
+    if (u && u.lat != null) {
+      const actualizado = u.captured_at ? new Date(u.captured_at).toLocaleString() : '—';
+      L.marker([u.lat, u.lng], { icon: makeIcon(v.color, 'bi-truck') })
+        .addTo(map)
+        .bindPopup(
+          '<div style="min-width:220px">' +
+            '<div class="fw-bold mb-1" style="color:'+v.color+'"><i class="bi bi-truck me-1"></i>' + v.nombre + '</div>' +
+            '<div class="small"><i class="bi bi-person-badge me-1"></i>Código: ' + v.codigo + '</div>' +
+            '<div class="small"><i class="bi bi-hash me-1"></i>Turno: ' + (u.turno_id != null ? u.turno_id : '—') + '</div>' +
+            '<div class="small"><i class="bi bi-clock me-1"></i>Última actualización: ' + actualizado + '</div>' +
+            '<div class="small"><i class="bi bi-geo me-1"></i>Puntos GPS: ' + v.puntos + '</div>' +
+            '<hr class="my-1">' +
+            '<div class="small"><i class="bi bi-check-circle me-1"></i>Clientes visitados: ' + v.clientes_visitados + '</div>' +
+            '<div class="small"><i class="bi bi-cash-coin me-1"></i>Ventas: $' + Number(v.ventas || 0).toLocaleString() + '</div>' +
+          '</div>'
+        );
+      bounds.push([u.lat, u.lng]);
+    }
+  });
+
+  if (bounds.length > 0) map.fitBounds(bounds, { padding:[30,30], maxZoom:16 });
+
+  // Filtro de estado en cliente (sin recargar).
+  document.getElementById('filtroEstado').addEventListener('change', function (e) {
+    const val = e.target.value;
+    markers.forEach(function (m) {
+      const show = !val || m.estado === val;
+      if (show) { m.marker.addTo(map); } else { map.removeLayer(m.marker); }
+    });
+  });
+</script>
+{% endblock %}

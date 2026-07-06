@@ -4,9 +4,8 @@ from flask import request
 from flask_jwt_extended import get_jwt_identity, jwt_required
 
 from app import db
+from app.models.cambio import BDCambio, BDCambioItem
 from app.models.cliente import Cliente
-from app.models.devolucion_item import BDDevolucionItem
-from app.models.devoluciones import BDDevolucion
 from app.models.producto import Producto
 from app.models.turno import BDTurno
 from app.models.venta_autoventa import BDVentaAutoventa, BDVentaAutoventaItem
@@ -64,14 +63,17 @@ def registrar_cambio():
         if not visita:
             return respuesta_error('visit_id no valido para el cliente/vendedor', 400)
 
+    # Idempotencia: si ya existe un cambio con este uuid, retornar el original.
     if uuid_origen:
-        venta_existente = BDVentaAutoventa.query.filter_by(uuid_origen=uuid_origen).first()
-        if venta_existente:
+        existente = BDCambio.query.filter_by(uuid_origen=uuid_origen).first()
+        if existente:
+            venta = BDVentaAutoventa.query.filter_by(uuid_origen=uuid_origen).first()
             return respuesta_ok({
                 'uuid': uuid_origen,
-                'venta_consecutivo': venta_existente.consecutivo,
+                'cambio_consecutivo': existente.consecutivo,
+                'venta_consecutivo': venta.consecutivo if venta else None,
                 'devolucion_consecutivo': None,
-                'total_venta': float(venta_existente.total),
+                'total_venta': float(existente.total_venta),
                 'idempotent': True,
             })
 
@@ -82,42 +84,59 @@ def registrar_cambio():
         return respuesta_error(str(error), 400)
 
     try:
-        devolucion = BDDevolucion(
-            consecutivo=generar_consecutivo(BDDevolucion, 'DV'),
+        cambio = BDCambio(
+            consecutivo=generar_consecutivo(BDCambio, 'CB'),
             codigo_vendedor=codigo_vendedor,
-            fecha=date.today(),
+            cliente_id=cliente_id,
             turno_id=turno_id,
+            visit_id=visit_id,
+            fecha=date.today(),
             comentarios=data.get('comentarios', ''),
-            usos=0,
+            uuid_origen=uuid_origen,
         )
-        db.session.add(devolucion)
+        db.session.add(cambio)
         db.session.flush()
 
         total_venta = 0
         venta_items_creados = []
 
+        # Pierna de devolución: productos que regresan DESDE el cliente.
         for item in items_devolucion:
             prod = Producto.query.filter_by(codigo=item['producto_cod']).first()
             if not prod:
                 raise ValueError(f"Producto {item['producto_cod']} no existe")
-
-            subtotal = prod.precio * item['cantidad']
-            db.session.add(BDDevolucionItem(
-                devolucion_id=devolucion.id,
+            precio = float(prod.precio or 0)
+            db.session.add(BDCambioItem(
+                cambio_id=cambio.id,
+                tipo='devolucion',
                 producto_cod=prod.codigo,
                 cantidad=item['cantidad'],
-                precio_unit=prod.precio,
-                subtotal=subtotal,
+                precio_unit=precio,
+                subtotal=precio * item['cantidad'],
             ))
 
+        # Pierna de venta: productos que salen HACIA el cliente.
         for item in items_venta:
             prod = Producto.query.filter_by(codigo=item['producto_cod']).first()
             if not prod:
                 raise ValueError(f"Producto {item['producto_cod']} no existe")
-            subtotal = prod.precio * item['cantidad']
+            precio = float(prod.precio or 0)
+            subtotal = precio * item['cantidad']
             total_venta += subtotal
             venta_items_creados.append((prod, item['cantidad'], subtotal))
+            db.session.add(BDCambioItem(
+                cambio_id=cambio.id,
+                tipo='venta',
+                producto_cod=prod.codigo,
+                cantidad=item['cantidad'],
+                precio_unit=precio,
+                subtotal=subtotal,
+            ))
 
+        cambio.total_venta = total_venta
+
+        # Registra la venta correspondiente (las unidades que salen del inventario
+        # se cuentan en el resumen vía BDVentaAutoventa, igual que una venta normal).
         venta = BDVentaAutoventa(
             consecutivo=generar_consecutivo(BDVentaAutoventa, 'AV'),
             codigo_vendedor=codigo_vendedor,
@@ -137,7 +156,7 @@ def registrar_cambio():
                 autoventa_id=venta.id,
                 producto_cod=prod.codigo,
                 cantidad=cantidad,
-                precio_unit=prod.precio,
+                precio_unit=float(prod.precio or 0),
                 subtotal=subtotal,
             ))
 
@@ -145,11 +164,13 @@ def registrar_cambio():
 
         return respuesta_ok({
             'uuid': uuid_origen,
+            'cambio_consecutivo': cambio.consecutivo,
             'venta_consecutivo': venta.consecutivo,
-            'devolucion_consecutivo': devolucion.consecutivo,
+            'devolucion_consecutivo': None,
             'total_venta': float(venta.total),
             'idempotent': False,
         })
+
     except ValueError as error:
         db.session.rollback()
         return respuesta_error(str(error), 400)

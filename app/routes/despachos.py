@@ -275,15 +275,40 @@ def listar_despachos():
         for d in despachos
     }
 
+    # Estado DERIVADO (sin columna nueva en BD): borrador/preparado/en_ruta/cerrado.
+    from app.services.despachos_service import estado_de_despacho
+    estados = {d.id: estado_de_despacho(d) for d in despachos}
+
     return render_template(
         'despachos/listar.html',
         despachos=despachos,
         vendedores=vendedores,
         totales=totales,
+        estados=estados,
         filtro_fecha=filtro_fecha,
         filtro_consecutivo=filtro_consecutivo,
         pagination=pagination
     )
+
+
+@despachos_bp.route('/despachos/diferencias/<int:did>', methods=['GET'])
+@login_required
+@rol_requerido('semiadmin', 'administrador')
+def diferencias_despacho(did):
+    """Diferencias: despachado sistema vs confirmado app vs vendido/devuelto/sobrante."""
+    from app.services.despachos_service import recolectar_diferencias
+
+    despacho = BDDespacho.query.get_or_404(did)
+    vendedor = Vendedor.query.filter_by(codigo_vendedor=despacho.vendedor_cod).first()
+    data = recolectar_diferencias(despacho)
+
+    return render_template(
+        'despachos/diferencias.html',
+        data=data,
+        despacho=despacho,
+        nombre_vendedor=vendedor.nombre if vendedor else '',
+    )
+
 
 @despachos_bp.route('/despachos/nuevo', methods=['GET', 'POST'])
 @login_required

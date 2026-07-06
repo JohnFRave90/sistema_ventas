@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Diferencias de Despacho{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-2 py-3">
+
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="mb-0">Diferencias del despacho {{ data.codigo_origen }}</h4>
+    <a href="{{ url_for('despachos.listar_despachos') }}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-arrow-left"></i> Volver
+    </a>
+  </div>
+
+  <div class="row g-2 mb-3">
+    <div class="col-6 col-md-3"><div class="border rounded p-2"><small class="text-muted">Vendedor</small><div>{{ nombre_vendedor or data.codigo_vendedor }}</div></div></div>
+    <div class="col-6 col-md-3"><div class="border rounded p-2"><small class="text-muted">Fecha</small><div>{{ data.fecha }}</div></div></div>
+    <div class="col-6 col-md-3"><div class="border rounded p-2"><small class="text-muted">Estado</small><div>{{ data.estado|replace('_',' ')|title }}</div></div></div>
+    <div class="col-6 col-md-3"><div class="border rounded p-2"><small class="text-muted">Productos</small><div>{{ data['items']|length }}</div></div></div>
+  </div>
+
+  <div class="alert alert-light border small">
+    <strong>Fórmulas:</strong>
+    sobrante estimado = confirmado app − vendido − devuelto ·
+    diferencia = confirmado app − despachado sistema.
+    Una diferencia negativa indica que el vendedor cargó menos de lo despachado.
+  </div>
+
+  <div class="table-responsive">
+    <table class="table table-hover table-sm align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>Producto</th>
+          <th class="text-end">Despachado sistema</th>
+          <th class="text-end">Confirmado app</th>
+          <th class="text-end">Vendido</th>
+          <th class="text-end">Devuelto</th>
+          <th class="text-end">Sobrante estimado</th>
+          <th class="text-end">Diferencia</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for it in data['items'] %}
+        <tr>
+          <td>{{ it.nombre }} <small class="text-muted">({{ it.producto_cod }})</small></td>
+          <td class="text-end">{{ it.cantidad_despacho_sistema }}</td>
+          <td class="text-end">{{ it.cantidad_confirmada_app }}</td>
+          <td class="text-end">{{ it.cantidad_vendida }}</td>
+          <td class="text-end">{{ it.cantidad_devuelta }}</td>
+          <td class="text-end">{{ it.sobrante_estimado }}</td>
+          <td class="text-end {% if it.diferencia < 0 %}text-danger{% elif it.diferencia > 0 %}text-warning{% endif %}">
+            <strong>{{ it.diferencia }}</strong>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="text-center">Sin datos para comparar.</td></tr>
+        {% endfor %}
+      </tbody>
+      {% if data['items'] %}
+      <tfoot class="table-light">
+        <tr>
+          <th>Totales</th>
+          <th class="text-end">{{ data.totales.despacho_sistema }}</th>
+          <th class="text-end">{{ data.totales.confirmada_app }}</th>
+          <th class="text-end">{{ data.totales.vendida }}</th>
+          <th class="text-end">{{ data.totales.devuelta }}</th>
+          <th class="text-end">{{ data.totales.sobrante_estimado }}</th>
+          <th class="text-end">{{ data.totales.diferencia }}</th>
+        </tr>
+      </tfoot>
+      {% endif %}
+    </table>
+  </div>
+</div>
+{% endblock %}

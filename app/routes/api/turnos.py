@@ -1,11 +1,12 @@
 from datetime import date, datetime
 from typing import Optional
 
-from flask import request
+from flask import current_app, request
 from flask_jwt_extended import get_jwt_identity, jwt_required
 from sqlalchemy import and_, func, or_
 
 from app import db
+from app.models.cambio import BDCambio, BDCambioItem
 from app.models.despachos import BDDespacho, BDDespachoItem
 from app.models.devolucion_item import BDDevolucionItem
 from app.models.devoluciones import BDDevolucion
@@ -139,6 +140,36 @@ def cerrar_turno(turno_id):
     return respuesta_ok(_serializar_turno(turno))
 
 
+@api_bp.route('/turnos', methods=['GET'])
+@api_bp.route('/turnos/historial', methods=['GET'])
+@jwt_required()
+def listar_turnos():
+    """Lista los turnos del vendedor desde la BD (fuente de verdad, multi-dispositivo).
+
+    Permite poblar un selector de turnos sin depender del caché local. Más recientes
+    primero. Filtros opcionales: ``estado`` (abierto/cerrado), ``limit`` (def 50, máx 200).
+    """
+    codigo_vendedor = get_jwt_identity()
+
+    query = BDTurno.query.filter_by(codigo_vendedor=codigo_vendedor)
+
+    estado = (request.args.get('estado') or '').strip()
+    if estado:
+        query = query.filter(BDTurno.estado == estado)
+
+    limit = request.args.get('limit', default=50, type=int) or 50
+    limit = max(1, min(limit, 200))
+
+    turnos = query.order_by(
+        BDTurno.fecha.desc(), BDTurno.id.desc()
+    ).limit(limit).all()
+
+    return respuesta_ok({
+        'total': len(turnos),
+        'turnos': [_serializar_turno(t) for t in turnos],
+    })
+
+
 @api_bp.route('/turnos/actual', methods=['GET'])
 @jwt_required()
 def turno_actual():
@@ -155,27 +186,85 @@ def turno_actual():
 @jwt_required()
 def resumen_turno_actual():
     codigo_vendedor = get_jwt_identity()
-    turno = _obtener_turno_referencia(codigo_vendedor)
+
+    # Accept optional turno_id query param for historical turno queries
+    turno_id_param = request.args.get('turno_id', type=int)
+    if turno_id_param:
+        turno = BDTurno.query.filter_by(id=turno_id_param, codigo_vendedor=codigo_vendedor).first()
+    else:
+        turno = _obtener_turno_referencia(codigo_vendedor)
 
     if not turno:
         return respuesta_ok({
             'turno_id': None,
             'fecha': str(date.today()),
             'completed_visits': 0,
+            'exception_visits': 0,
             'checked_stock_items': 0,
             'units_loaded': 0,
             'units_sold': 0,
+            'total_sold': 0,
             'returns_handled': 0,
             'units_remaining': 0,
+            'attended_customers': [],
         })
 
-    visitas_query = db.session.query(
-        func.count(func.distinct(BDVisitaCliente.cliente_id))
+    # Visitas completadas (done) - count ALL events, not distinct clients
+    visitas_completadas = db.session.query(
+        func.count(BDVisitaCliente.id)
+    ).filter(
+        BDVisitaCliente.codigo_vendedor == codigo_vendedor,
+        BDVisitaCliente.estado == 'completada',
+        _filtro_turno_o_fecha(turno, BDVisitaCliente.turno_id, BDVisitaCliente.fecha_visita),
+    ).scalar() or 0
+
+    # Visitas con excepcion - count ALL events, not distinct clients
+    visitas_excepcion = db.session.query(
+        func.count(BDVisitaCliente.id)
+    ).filter(
+        BDVisitaCliente.codigo_vendedor == codigo_vendedor,
+        BDVisitaCliente.estado == 'excepcion',
+        _filtro_turno_o_fecha(turno, BDVisitaCliente.turno_id, BDVisitaCliente.fecha_visita),
+    ).scalar() or 0
+
+    # Clientes atendidos (detalle)
+    visitas_detalle = db.session.query(
+        BDVisitaCliente.id,
+        BDVisitaCliente.cliente_id,
+        BDVisitaCliente.estado,
+        BDVisitaCliente.checkin_at,
     ).filter(
         BDVisitaCliente.codigo_vendedor == codigo_vendedor,
         BDVisitaCliente.estado.in_(['completada', 'excepcion']),
         _filtro_turno_o_fecha(turno, BDVisitaCliente.turno_id, BDVisitaCliente.fecha_visita),
-    )
+    ).order_by(BDVisitaCliente.checkin_at.asc()).all()
+
+    attended_customers = [
+        {
+            'visita_id': v.id,
+            'cliente_id': v.cliente_id,
+            'estado': v.estado,
+            'timestamp': v.checkin_at.isoformat() if v.checkin_at else None,
+        }
+        for v in visitas_detalle
+    ]
+
+    # Anti doble-conteo: una vez que un despacho está ligado a turno_id, usar SOLO
+    # ese filtro. Combinar "turno_id IS NULL AND fecha = turno.fecha" junto con los
+    # despachos ligados al turno contaría el despacho admin Y el de preturno dos veces.
+    has_turno_despacho = db.session.query(BDDespacho.id).filter(
+        BDDespacho.vendedor_cod == codigo_vendedor,
+        BDDespacho.despachado.is_(True),
+        BDDespacho.turno_id == turno.id,
+    ).first() is not None
+
+    if has_turno_despacho:
+        despacho_filter = (BDDespacho.turno_id == turno.id)
+    else:
+        despacho_filter = and_(
+            BDDespacho.turno_id.is_(None),
+            BDDespacho.fecha == turno.fecha,
+        )
 
     despachos_query = db.session.query(
         func.coalesce(func.sum(BDDespachoItem.cantidad), 0),
@@ -186,9 +275,10 @@ def resumen_turno_actual():
     ).filter(
         BDDespacho.vendedor_cod == codigo_vendedor,
         BDDespacho.despachado.is_(True),
-        _filtro_turno_o_fecha(turno, BDDespacho.turno_id, BDDespacho.fecha),
+        despacho_filter,
     )
 
+    # Unidades vendidas (cantidad)
     ventas_query = db.session.query(
         func.coalesce(func.sum(BDVentaAutoventaItem.cantidad), 0)
     ).join(
@@ -199,9 +289,15 @@ def resumen_turno_actual():
         _filtro_turno_o_fecha(turno, BDVentaAutoventa.turno_id, BDVentaAutoventa.fecha),
     )
 
-    # Contar SOLO las devoluciones ligadas a este turno (no todas las del día).
-    # Antes se filtraba por fecha, lo que sumaba devoluciones de otros turnos, las
-    # generadas por cambios y datos de prueba acumulados, inflando units_remaining.
+    # Total vendido en dinero
+    total_sold_query = db.session.query(
+        func.coalesce(func.sum(BDVentaAutoventa.total), 0)
+    ).filter(
+        BDVentaAutoventa.codigo_vendedor == codigo_vendedor,
+        _filtro_turno_o_fecha(turno, BDVentaAutoventa.turno_id, BDVentaAutoventa.fecha),
+    )
+
+    # Devoluciones reales (vendedor + cliente), nunca cambios. Solo las del turno.
     devoluciones_query = db.session.query(
         func.coalesce(func.sum(BDDevolucionItem.cantidad), 0)
     ).join(
@@ -212,21 +308,218 @@ def resumen_turno_actual():
         BDDevolucion.turno_id == turno.id,
     )
 
-    completed_visits = int(visitas_query.scalar() or 0)
+    # Productos recibidos DE VUELTA del cliente como parte de un cambio.
+    # Se registran en BDCambioItem(tipo='devolucion'), aparte de las devoluciones reales.
+    cambio_returns_query = db.session.query(
+        func.coalesce(func.sum(BDCambioItem.cantidad), 0)
+    ).join(
+        BDCambio,
+        BDCambio.id == BDCambioItem.cambio_id,
+    ).filter(
+        BDCambio.codigo_vendedor == codigo_vendedor,
+        BDCambio.turno_id == turno.id,
+        BDCambioItem.tipo == 'devolucion',
+    )
+
+    completed_visits = int(visitas_completadas or 0)
+    exception_visits = int(visitas_excepcion or 0)
     units_loaded_raw, checked_stock_items_raw = despachos_query.first() or (0, 0)
     units_loaded = int(units_loaded_raw or 0)
     checked_stock_items = int(checked_stock_items_raw or 0)
     units_sold = int(ventas_query.scalar() or 0)
+    total_sold = float(total_sold_query.scalar() or 0)
     returns_handled = int(devoluciones_query.scalar() or 0)
-    units_remaining = max(0, units_loaded - units_sold + returns_handled)
+    cambio_returns = int(cambio_returns_query.scalar() or 0)
+    # units_remaining = cargado - vendido + devoluciones_reales + devoluciones_por_cambio
+    # 'units_sold' ya incluye la pierna de venta de cada cambio (vía BDVentaAutoventa).
+    # 'cambio_returns' cuenta los productos que regresan físicamente vía intercambios.
+    units_remaining = max(0, units_loaded - units_sold + returns_handled + cambio_returns)
 
     return respuesta_ok({
         'turno_id': turno.id,
         'fecha': str(turno.fecha),
         'completed_visits': completed_visits,
+        'exception_visits': exception_visits,
         'checked_stock_items': checked_stock_items,
         'units_loaded': units_loaded,
         'units_sold': units_sold,
+        'total_sold': total_sold,
         'returns_handled': returns_handled,
+        'cambio_returns': cambio_returns,
         'units_remaining': units_remaining,
+        'attended_customers': attended_customers,
+    })
+
+
+@api_bp.route('/turnos/historial-resumen', methods=['GET'])
+@jwt_required()
+def historial_resumen_turnos():
+    """Historial COMPLETO de turnos del vendedor (BD, multi-dispositivo) con sus
+    métricas agregadas en UNA sola respuesta.
+
+    A diferencia de /turnos/resumen (un turno por llamada), aquí se devuelven N
+    turnos con sus totales calculados por turno_id usando agregaciones GROUP BY:
+    una query por métrica (no N+1, no por-turno round-trips).
+
+    Filtros opcionales: ?desde=YYYY-MM-DD&hasta=YYYY-MM-DD&estado=abierto|cerrado|todos&limit=50
+
+    El vendedor SIEMPRE sale del JWT (no de un parámetro manipulable).
+
+    Métricas omitidas a propósito (no atribuibles por turno en el esquema actual):
+      - pedidos_total / extras: BDPedido y BDExtra no tienen turno_id.
+      - liquidado: BD_LIQUIDACION liga a BDVenta (web), no al turno de autoventa.
+    """
+    codigo_vendedor = get_jwt_identity()
+
+    estado = (request.args.get('estado') or '').strip().lower()
+    limit = request.args.get('limit', default=50, type=int) or 50
+    limit = max(1, min(limit, 200))
+
+    q = BDTurno.query.filter_by(codigo_vendedor=codigo_vendedor)
+    if estado in ('abierto', 'cerrado'):
+        q = q.filter(BDTurno.estado == estado)
+
+    desde_raw = request.args.get('desde')
+    hasta_raw = request.args.get('hasta')
+    try:
+        if desde_raw:
+            q = q.filter(BDTurno.fecha >= _parse_date(desde_raw))
+        if hasta_raw:
+            q = q.filter(BDTurno.fecha <= _parse_date(hasta_raw))
+    except (ValueError, TypeError):
+        return respuesta_error('Rango de fechas inválido (usa YYYY-MM-DD)', 400)
+
+    turnos = q.order_by(BDTurno.fecha.desc(), BDTurno.id.desc()).limit(limit).all()
+    turno_ids = [t.id for t in turnos]
+
+    current_app.logger.info(
+        '[historial-resumen] vendedor=%s estado=%s desde=%s hasta=%s limit=%s turnos_ids=%s',
+        codigo_vendedor, estado or 'todos', desde_raw, hasta_raw, limit, turno_ids,
+    )
+
+    if not turno_ids:
+        return respuesta_ok({
+            'codigo_vendedor': codigo_vendedor,
+            'desde': desde_raw,
+            'hasta': hasta_raw,
+            'total': 0,
+            'turnos': [],
+        })
+
+    # --- Agregaciones por turno_id (una query por métrica, acotadas a turno_ids) ---
+    def _to_map(rows):
+        return {row[0]: row[1:] for row in rows}
+
+    despacho_rows = db.session.query(
+        BDDespacho.turno_id,
+        func.coalesce(func.sum(BDDespachoItem.cantidad), 0),
+    ).join(BDDespachoItem, BDDespacho.id == BDDespachoItem.despacho_id).filter(
+        BDDespacho.vendedor_cod == codigo_vendedor,
+        BDDespacho.despachado.is_(True),
+        BDDespacho.turno_id.in_(turno_ids),
+    ).group_by(BDDespacho.turno_id).all()
+    despacho_map = {tid: int(qty or 0) for tid, qty in despacho_rows}
+
+    ventas_rows = db.session.query(
+        BDVentaAutoventa.turno_id,
+        func.coalesce(func.sum(BDVentaAutoventa.total), 0),
+    ).filter(
+        BDVentaAutoventa.codigo_vendedor == codigo_vendedor,
+        BDVentaAutoventa.turno_id.in_(turno_ids),
+    ).group_by(BDVentaAutoventa.turno_id).all()
+    ventas_total_map = {tid: float(total or 0) for tid, total in ventas_rows}
+
+    unidades_rows = db.session.query(
+        BDVentaAutoventa.turno_id,
+        func.coalesce(func.sum(BDVentaAutoventaItem.cantidad), 0),
+    ).join(BDVentaAutoventaItem, BDVentaAutoventa.id == BDVentaAutoventaItem.autoventa_id).filter(
+        BDVentaAutoventa.codigo_vendedor == codigo_vendedor,
+        BDVentaAutoventa.turno_id.in_(turno_ids),
+    ).group_by(BDVentaAutoventa.turno_id).all()
+    unidades_map = {tid: int(qty or 0) for tid, qty in unidades_rows}
+
+    # Devoluciones por tipo (vendedor / cliente) en unidades.
+    dev_rows = db.session.query(
+        BDDevolucion.turno_id,
+        BDDevolucion.tipo_devolucion,
+        func.coalesce(func.sum(BDDevolucionItem.cantidad), 0),
+    ).join(BDDevolucionItem, BDDevolucion.id == BDDevolucionItem.devolucion_id).filter(
+        BDDevolucion.codigo_vendedor == codigo_vendedor,
+        BDDevolucion.turno_id.in_(turno_ids),
+    ).group_by(BDDevolucion.turno_id, BDDevolucion.tipo_devolucion).all()
+    dev_vendedor_map = {}
+    dev_cliente_map = {}
+    for tid, tipo, qty in dev_rows:
+        if tipo == 'cliente':
+            dev_cliente_map[tid] = int(qty or 0)
+        else:
+            dev_vendedor_map[tid] = dev_vendedor_map.get(tid, 0) + int(qty or 0)
+
+    cambios_count_rows = db.session.query(
+        BDCambio.turno_id,
+        func.count(BDCambio.id),
+    ).filter(
+        BDCambio.codigo_vendedor == codigo_vendedor,
+        BDCambio.turno_id.in_(turno_ids),
+    ).group_by(BDCambio.turno_id).all()
+    cambios_count_map = {tid: int(n or 0) for tid, n in cambios_count_rows}
+
+    cambio_returns_rows = db.session.query(
+        BDCambio.turno_id,
+        func.coalesce(func.sum(BDCambioItem.cantidad), 0),
+    ).join(BDCambioItem, BDCambio.id == BDCambioItem.cambio_id).filter(
+        BDCambio.codigo_vendedor == codigo_vendedor,
+        BDCambio.turno_id.in_(turno_ids),
+        BDCambioItem.tipo == 'devolucion',
+    ).group_by(BDCambio.turno_id).all()
+    cambio_returns_map = {tid: int(qty or 0) for tid, qty in cambio_returns_rows}
+
+    visitas_rows = db.session.query(
+        BDVisitaCliente.turno_id,
+        BDVisitaCliente.estado,
+        func.count(BDVisitaCliente.id),
+    ).filter(
+        BDVisitaCliente.codigo_vendedor == codigo_vendedor,
+        BDVisitaCliente.turno_id.in_(turno_ids),
+    ).group_by(BDVisitaCliente.turno_id, BDVisitaCliente.estado).all()
+    visitas_total_map = {}
+    visitas_hechas_map = {}
+    for tid, vestado, n in visitas_rows:
+        n = int(n or 0)
+        visitas_total_map[tid] = visitas_total_map.get(tid, 0) + n
+        if vestado in ('completada', 'excepcion'):
+            visitas_hechas_map[tid] = visitas_hechas_map.get(tid, 0) + n
+
+    items = []
+    for t in turnos:
+        carga_inicial = despacho_map.get(t.id, 0)
+        unidades_vendidas = unidades_map.get(t.id, 0)
+        dev_vendedor = dev_vendedor_map.get(t.id, 0)
+        dev_cliente = dev_cliente_map.get(t.id, 0)
+        cambio_returns = cambio_returns_map.get(t.id, 0)
+        # Consistente con /turnos/resumen: restante = cargado - vendido + devoluciones + cambio_returns
+        saldo_final = max(0, carga_inicial - unidades_vendidas + dev_vendedor + dev_cliente + cambio_returns)
+        items.append({
+            'turno_id': t.id,
+            'turno_numero': t.turno_numero,
+            'fecha': str(t.fecha),
+            'estado': t.estado,
+            'carga_inicial': carga_inicial,
+            'ventas_total': ventas_total_map.get(t.id, 0.0),
+            'unidades_vendidas': unidades_vendidas,
+            'cambios': cambios_count_map.get(t.id, 0),
+            'cambio_returns': cambio_returns,
+            'devoluciones_cliente': dev_cliente,
+            'devoluciones_vendedor': dev_vendedor,
+            'saldo_final': saldo_final,
+            'visitas_total': visitas_total_map.get(t.id, 0),
+            'visitas_realizadas': visitas_hechas_map.get(t.id, 0),
+        })
+
+    return respuesta_ok({
+        'codigo_vendedor': codigo_vendedor,
+        'desde': desde_raw,
+        'hasta': hasta_raw,
+        'total': len(items),
+        'turnos': items,
     })

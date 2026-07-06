@@ -23,3 +23,6 @@ from app.routes.api import rutas      # noqa: F401
 from app.routes.api import turnos     # noqa: F401
 from app.routes.api import visitas    # noqa: F401
 from app.routes.api import ubicaciones # noqa: F401
+from app.routes.api import despachos   # noqa: F401
+from app.routes.api import mapa        # noqa: F401
+from app.routes.api import analitica   # noqa: F401
