@@ -13,7 +13,7 @@ def borrar_movimientos_canastas():
         return
 
     try:
-        db.session.execute(text('DELETE FROM movimientos'))
+        db.session.execute(text('DELETE FROM movimientos_canastas'))
         db.session.execute(text('UPDATE canastas SET actualidad = "Disponible"'))
         db.session.commit()
         click.echo("✅ Movimientos borrados y canastas actualizadas a 'Disponible'.")
