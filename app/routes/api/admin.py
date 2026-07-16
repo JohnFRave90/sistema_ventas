@@ -1,9 +1,17 @@
 from datetime import datetime, timedelta
 
 from flask import request
+from sqlalchemy import func
 
+from app import db
 from app.routes.api import api_bp, respuesta_ok, respuesta_error, admin_jwt_required
 from app.models.vendedor import Vendedor
+from app.models.producto import Producto
+from app.models.despachos import BDDespacho, BDDespachoItem
+from app.models.devoluciones import BDDevolucion
+from app.models.devolucion_item import BDDevolucionItem
+from app.models.pedidos import BDPedido
+from app.models.pedido_item import BDPedidoItem
 from app.services.analitica_service import recolectar_resumen, recolectar_breakdown
 
 RANGO_MAX_DIAS = 92
@@ -22,6 +30,32 @@ def _parse_fecha(valor):
         return datetime.strptime(valor, '%Y-%m-%d').date()
     except (TypeError, ValueError):
         return None
+
+
+def _parse_codigos(valor):
+    if not valor:
+        return None
+    return [c.strip() for c in valor.split(',') if c.strip()]
+
+
+def _validar_rango(desde, hasta):
+    if not desde or not hasta:
+        return respuesta_error('desde y hasta son requeridos (YYYY-MM-DD)', 400)
+    if hasta < desde:
+        return respuesta_error('hasta debe ser >= desde', 400)
+    return None
+
+
+def _con_nombres_producto(filas):
+    """filas: lista de (producto_cod, cantidad_total). Adjunta el nombre del producto."""
+    codigos = [c for c, _ in filas]
+    nombres = {}
+    if codigos:
+        nombres = {p.codigo: p.nombre for p in Producto.query.filter(Producto.codigo.in_(codigos)).all()}
+    return [
+        {'producto_cod': c, 'nombre': nombres.get(c, c), 'cantidad': int(q or 0)}
+        for c, q in filas
+    ]
 
 
 @api_bp.route('/admin/vendedores', methods=['GET'])
@@ -84,4 +118,105 @@ def admin_analitica_rango():
         'vendedor': vendedor,
         'serie': serie,
         'agregado': agregado,
+    })
+
+
+@api_bp.route('/admin/despachos/por_producto', methods=['GET'])
+@admin_jwt_required
+def admin_despachos_por_producto():
+    """Unidades despachadas (entregadas a vendedores) por producto en un rango de fechas.
+
+    Refleja lo que los vendedores necesitaron/recibieron para su ruta —
+    dato base para programar producción.
+    """
+    desde = _parse_fecha(request.args.get('desde'))
+    hasta = _parse_fecha(request.args.get('hasta'))
+    vendedor = (request.args.get('vendedor') or '').strip() or None
+    codigos = _parse_codigos(request.args.get('producto_codigos'))
+
+    error = _validar_rango(desde, hasta)
+    if error:
+        return error
+
+    query = db.session.query(
+        BDDespachoItem.producto_cod,
+        func.coalesce(func.sum(BDDespachoItem.cantidad), 0),
+    ).join(BDDespacho, BDDespacho.id == BDDespachoItem.despacho_id).filter(
+        BDDespacho.fecha >= desde, BDDespacho.fecha <= hasta,
+    )
+    if vendedor:
+        query = query.filter(BDDespacho.vendedor_cod == vendedor)
+    if codigos:
+        query = query.filter(BDDespachoItem.producto_cod.in_(codigos))
+
+    filas = query.group_by(BDDespachoItem.producto_cod).all()
+    return respuesta_ok({
+        'desde': str(desde), 'hasta': str(hasta), 'vendedor': vendedor,
+        'productos': _con_nombres_producto(filas),
+    })
+
+
+@api_bp.route('/admin/devoluciones/por_producto', methods=['GET'])
+@admin_jwt_required
+def admin_devoluciones_por_producto():
+    """Unidades devueltas por producto en un rango de fechas."""
+    desde = _parse_fecha(request.args.get('desde'))
+    hasta = _parse_fecha(request.args.get('hasta'))
+    vendedor = (request.args.get('vendedor') or '').strip() or None
+    codigos = _parse_codigos(request.args.get('producto_codigos'))
+
+    error = _validar_rango(desde, hasta)
+    if error:
+        return error
+
+    query = db.session.query(
+        BDDevolucionItem.producto_cod,
+        func.coalesce(func.sum(BDDevolucionItem.cantidad), 0),
+    ).join(BDDevolucion, BDDevolucion.id == BDDevolucionItem.devolucion_id).filter(
+        BDDevolucion.fecha >= desde, BDDevolucion.fecha <= hasta,
+    )
+    if vendedor:
+        query = query.filter(BDDevolucion.codigo_vendedor == vendedor)
+    if codigos:
+        query = query.filter(BDDevolucionItem.producto_cod.in_(codigos))
+
+    filas = query.group_by(BDDevolucionItem.producto_cod).all()
+    return respuesta_ok({
+        'desde': str(desde), 'hasta': str(hasta), 'vendedor': vendedor,
+        'productos': _con_nombres_producto(filas),
+    })
+
+
+@api_bp.route('/admin/pedidos/por_producto', methods=['GET'])
+@admin_jwt_required
+def admin_pedidos_por_producto():
+    """Unidades en pedidos anticipados (preventa de clientes) por producto en un rango de fechas.
+
+    No representa lo que un vendedor necesita para su ruta diaria — es la
+    demanda puntual de clientes específicos registrada por los vendedores.
+    """
+    desde = _parse_fecha(request.args.get('desde'))
+    hasta = _parse_fecha(request.args.get('hasta'))
+    vendedor = (request.args.get('vendedor') or '').strip() or None
+    codigos = _parse_codigos(request.args.get('producto_codigos'))
+
+    error = _validar_rango(desde, hasta)
+    if error:
+        return error
+
+    query = db.session.query(
+        BDPedidoItem.producto_cod,
+        func.coalesce(func.sum(BDPedidoItem.cantidad), 0),
+    ).join(BDPedido, BDPedido.id == BDPedidoItem.pedido_id).filter(
+        BDPedido.fecha >= desde, BDPedido.fecha <= hasta,
+    )
+    if vendedor:
+        query = query.filter(BDPedido.codigo_vendedor == vendedor)
+    if codigos:
+        query = query.filter(BDPedidoItem.producto_cod.in_(codigos))
+
+    filas = query.group_by(BDPedidoItem.producto_cod).all()
+    return respuesta_ok({
+        'desde': str(desde), 'hasta': str(hasta), 'vendedor': vendedor,
+        'productos': _con_nombres_producto(filas),
     })

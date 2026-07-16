@@ -104,6 +104,47 @@ def resumen_rango(desde: str, hasta: str, vendedor: str = "") -> dict:
 
 
 @mcp.tool()
+def despachos_por_producto(desde: str, hasta: str, vendedor: str = "", producto_codigos: str = "") -> dict:
+    """Unidades DESPACHADAS (entregadas a vendedores para vender) por producto, en un rango de fechas.
+
+    Es el dato base para programar producción: refleja lo que los vendedores
+    necesitaron/recibieron para su ruta cada día (no pedidos de clientes).
+    desde, hasta: 'YYYY-MM-DD'. vendedor: código opcional para filtrar.
+    producto_codigos: códigos separados por coma (ej. '10058,10059') para filtrar productos
+    específicos; vacío = todos los productos.
+    """
+    return _get("/admin/despachos/por_producto", {
+        "desde": desde, "hasta": hasta, "vendedor": vendedor, "producto_codigos": producto_codigos,
+    })
+
+
+@mcp.tool()
+def devoluciones_por_producto(desde: str, hasta: str, vendedor: str = "", producto_codigos: str = "") -> dict:
+    """Unidades DEVUELTAS por los vendedores (no vendidas) por producto, en un rango de fechas.
+
+    desde, hasta: 'YYYY-MM-DD'. vendedor: código opcional para filtrar.
+    producto_codigos: códigos separados por coma para filtrar productos específicos.
+    """
+    return _get("/admin/devoluciones/por_producto", {
+        "desde": desde, "hasta": hasta, "vendedor": vendedor, "producto_codigos": producto_codigos,
+    })
+
+
+@mcp.tool()
+def pedidos_por_producto(desde: str, hasta: str, vendedor: str = "", producto_codigos: str = "") -> dict:
+    """Unidades en PEDIDOS ANTICIPADOS de clientes (preventa) por producto, en un rango de fechas.
+
+    OJO: esto NO es lo que un vendedor necesita para su ruta diaria — es
+    demanda puntual de clientes específicos tomada por el vendedor. Para
+    programar producción normalmente se usa despachos_por_producto, no esta.
+    desde, hasta: 'YYYY-MM-DD'. vendedor: código opcional para filtrar.
+    """
+    return _get("/admin/pedidos/por_producto", {
+        "desde": desde, "hasta": hasta, "vendedor": vendedor, "producto_codigos": producto_codigos,
+    })
+
+
+@mcp.tool()
 def listar_despachos(fecha: str = "", vendedor: str = "", estado: str = "") -> dict:
     """Lista despachos (máx. 200), con estado derivado (ej. despachado/pendiente).
 

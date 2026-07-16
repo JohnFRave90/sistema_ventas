@@ -50,6 +50,9 @@ de herramientas en el chat).
 | `resumen_diario(fecha, vendedor)` | `/admin/analitica/resumen` | Un vendedor o todos, un día |
 | `breakdown_diario(fecha)` | `/admin/analitica/breakdown` | Ranking por vendedor + top productos, un día |
 | `resumen_rango(desde, hasta, vendedor)` | `/admin/analitica/rango` | Un vendedor o todos, hasta 92 días |
+| `despachos_por_producto(desde, hasta, vendedor, producto_codigos)` | `/admin/despachos/por_producto` | Unidades entregadas a vendedores — dato base para producción |
+| `devoluciones_por_producto(desde, hasta, vendedor, producto_codigos)` | `/admin/devoluciones/por_producto` | Unidades devueltas (no vendidas) |
+| `pedidos_por_producto(desde, hasta, vendedor, producto_codigos)` | `/admin/pedidos/por_producto` | Preventa de clientes (NO ruta diaria del vendedor) |
 | `listar_despachos(fecha, vendedor, estado)` | `/despachos` | Todos los vendedores, cualquier fecha |
 | `despacho_items(despacho_id)` | `/despachos/<id>/items` | — |
 | `despacho_diferencias(despacho_id)` | `/despachos/<id>/diferencias` | — |
