@@ -15,6 +15,7 @@ from app.models.producto import Producto
 from app.models.ruta_sesion import BDRutaSesion
 from app.models.turno import BDTurno
 from app.utils.inventario import calcular_inventario_inicial, calcular_devolucion_anterior_map
+from app.utils.productos import orden_index
 
 PRE_TURNO_TIPO_ORIGEN = 'PREAPP'
 
@@ -299,7 +300,9 @@ def inventario_inicial():
     productos_map = {p.codigo: p for p in productos}
     _mark(f'productos mapping done n={len(productos_map)}')
 
-    items = calcular_inventario_inicial(despacho_map, devolucion_map, productos_map)
+    # orden_index = posición canónica del sistema de ventas (misma fuente que
+    # get_productos_ordenados), NO la columna Producto.orden.
+    items = calcular_inventario_inicial(despacho_map, devolucion_map, productos_map, orden_fn=orden_index)
     _mark(f'response built items={len(items)}')
 
     # Contexto: turno activo y sesión de ruta activa (para que la app sepa a qué

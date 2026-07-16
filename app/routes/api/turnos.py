@@ -3,13 +3,14 @@ from typing import Optional
 
 from flask import current_app, request
 from flask_jwt_extended import get_jwt_identity, jwt_required
-from sqlalchemy import and_, func, or_
+from sqlalchemy import and_, case, func, or_
 
 from app import db
 from app.models.cambio import BDCambio, BDCambioItem
 from app.models.despachos import BDDespacho, BDDespachoItem
 from app.models.devolucion_item import BDDevolucionItem
 from app.models.devoluciones import BDDevolucion
+from app.models.producto import Producto
 from app.models.turno import BDTurno
 from app.models.venta_autoventa import BDVentaAutoventa, BDVentaAutoventaItem
 from app.models.visita_cliente import BDVisitaCliente
@@ -204,6 +205,10 @@ def resumen_turno_actual():
             'units_loaded': 0,
             'units_sold': 0,
             'total_sold': 0,
+            'total_efectivo': 0,
+            'total_transferencia': 0,
+            'total_mixto': 0,
+            'productos_vendidos': [],
             'returns_handled': 0,
             'units_remaining': 0,
             'attended_customers': [],
@@ -239,11 +244,36 @@ def resumen_turno_actual():
         _filtro_turno_o_fecha(turno, BDVisitaCliente.turno_id, BDVisitaCliente.fecha_visita),
     ).order_by(BDVisitaCliente.checkin_at.asc()).all()
 
+    # Acción por cliente (venta/cambio/no_compra/visita) para el resumen parcial.
+    # Fuente: qué operación registró el vendedor con ese cliente en el turno.
+    venta_cliente_ids = {
+        cid for (cid,) in db.session.query(BDVentaAutoventa.cliente_id).filter(
+            BDVentaAutoventa.codigo_vendedor == codigo_vendedor,
+            _filtro_turno_o_fecha(turno, BDVentaAutoventa.turno_id, BDVentaAutoventa.fecha),
+        ).distinct().all()
+    }
+    cambio_cliente_ids = {
+        cid for (cid,) in db.session.query(BDCambio.cliente_id).filter(
+            BDCambio.codigo_vendedor == codigo_vendedor,
+            BDCambio.turno_id == turno.id,
+        ).distinct().all()
+    }
+
+    def _accion_cliente(cliente_id, estado):
+        if estado == 'excepcion':
+            return 'no_compra'
+        if cliente_id in cambio_cliente_ids:
+            return 'cambio'
+        if cliente_id in venta_cliente_ids:
+            return 'venta'
+        return 'visita'
+
     attended_customers = [
         {
             'visita_id': v.id,
             'cliente_id': v.cliente_id,
             'estado': v.estado,
+            'accion': _accion_cliente(v.cliente_id, v.estado),
             'timestamp': v.checkin_at.isoformat() if v.checkin_at else None,
         }
         for v in visitas_detalle
@@ -297,6 +327,52 @@ def resumen_turno_actual():
         _filtro_turno_o_fecha(turno, BDVentaAutoventa.turno_id, BDVentaAutoventa.fecha),
     )
 
+    # Desglose por FORMA DE PAGO en cubetas mutuamente excluyentes: efectivo,
+    # transferencia y mixto suman el total completo de la venta según su método
+    # (efectivo + transferencia + mixto = total_sold). NULL (histórico) = efectivo.
+    efectivo_expr = case(
+        (BDVentaAutoventa.metodo_pago == 'transferencia', 0),
+        (BDVentaAutoventa.metodo_pago == 'mixto', 0),
+        else_=BDVentaAutoventa.total,
+    )
+    transferencia_expr = case(
+        (BDVentaAutoventa.metodo_pago == 'transferencia', BDVentaAutoventa.total),
+        else_=0,
+    )
+    mixto_expr = case(
+        (BDVentaAutoventa.metodo_pago == 'mixto', BDVentaAutoventa.total),
+        else_=0,
+    )
+    pago_breakdown_query = db.session.query(
+        func.coalesce(func.sum(efectivo_expr), 0),
+        func.coalesce(func.sum(transferencia_expr), 0),
+        func.coalesce(func.sum(mixto_expr), 0),
+    ).filter(
+        BDVentaAutoventa.codigo_vendedor == codigo_vendedor,
+        _filtro_turno_o_fecha(turno, BDVentaAutoventa.turno_id, BDVentaAutoventa.fecha),
+    )
+
+    # Consolidado de ventas por producto (para el recibo "Resumen de ventas").
+    productos_vendidos_rows = db.session.query(
+        BDVentaAutoventaItem.producto_cod,
+        func.coalesce(func.sum(BDVentaAutoventaItem.cantidad), 0),
+        func.coalesce(func.sum(BDVentaAutoventaItem.subtotal), 0),
+        Producto.nombre,
+        Producto.orden,
+    ).join(
+        BDVentaAutoventa,
+        BDVentaAutoventa.id == BDVentaAutoventaItem.autoventa_id,
+    ).outerjoin(
+        Producto, Producto.codigo == BDVentaAutoventaItem.producto_cod,
+    ).filter(
+        BDVentaAutoventa.codigo_vendedor == codigo_vendedor,
+        _filtro_turno_o_fecha(turno, BDVentaAutoventa.turno_id, BDVentaAutoventa.fecha),
+    ).group_by(
+        BDVentaAutoventaItem.producto_cod, Producto.nombre, Producto.orden,
+    ).order_by(
+        func.coalesce(Producto.orden, 999999), BDVentaAutoventaItem.producto_cod,
+    ).all()
+
     # Devoluciones reales (vendedor + cliente), nunca cambios. Solo las del turno.
     devoluciones_query = db.session.query(
         func.coalesce(func.sum(BDDevolucionItem.cantidad), 0)
@@ -328,6 +404,20 @@ def resumen_turno_actual():
     checked_stock_items = int(checked_stock_items_raw or 0)
     units_sold = int(ventas_query.scalar() or 0)
     total_sold = float(total_sold_query.scalar() or 0)
+    total_efectivo_raw, total_transferencia_raw, total_mixto_raw = pago_breakdown_query.first() or (0, 0, 0)
+    total_efectivo = float(total_efectivo_raw or 0)
+    total_transferencia = float(total_transferencia_raw or 0)
+    total_mixto = float(total_mixto_raw or 0)
+    productos_vendidos = [
+        {
+            'producto_cod': cod,
+            'nombre': nombre or cod,
+            'cantidad': int(cantidad or 0),
+            'total': float(subtotal or 0),
+            'orden': orden,
+        }
+        for (cod, cantidad, subtotal, nombre, orden) in productos_vendidos_rows
+    ]
     returns_handled = int(devoluciones_query.scalar() or 0)
     cambio_returns = int(cambio_returns_query.scalar() or 0)
     # units_remaining = cargado - vendido + devoluciones_reales + devoluciones_por_cambio
@@ -344,6 +434,10 @@ def resumen_turno_actual():
         'units_loaded': units_loaded,
         'units_sold': units_sold,
         'total_sold': total_sold,
+        'total_efectivo': total_efectivo,
+        'total_transferencia': total_transferencia,
+        'total_mixto': total_mixto,
+        'productos_vendidos': productos_vendidos,
         'returns_handled': returns_handled,
         'cambio_returns': cambio_returns,
         'units_remaining': units_remaining,
@@ -429,6 +523,33 @@ def historial_resumen_turnos():
     ).group_by(BDVentaAutoventa.turno_id).all()
     ventas_total_map = {tid: float(total or 0) for tid, total in ventas_rows}
 
+    # Desglose por forma de pago por turno (mismo criterio que /turnos/resumen).
+    pago_efectivo_expr = case(
+        (BDVentaAutoventa.metodo_pago == 'transferencia', 0),
+        (BDVentaAutoventa.metodo_pago == 'mixto', 0),
+        else_=BDVentaAutoventa.total,
+    )
+    pago_transferencia_expr = case(
+        (BDVentaAutoventa.metodo_pago == 'transferencia', BDVentaAutoventa.total),
+        else_=0,
+    )
+    pago_mixto_expr = case(
+        (BDVentaAutoventa.metodo_pago == 'mixto', BDVentaAutoventa.total),
+        else_=0,
+    )
+    pago_rows = db.session.query(
+        BDVentaAutoventa.turno_id,
+        func.coalesce(func.sum(pago_efectivo_expr), 0),
+        func.coalesce(func.sum(pago_transferencia_expr), 0),
+        func.coalesce(func.sum(pago_mixto_expr), 0),
+    ).filter(
+        BDVentaAutoventa.codigo_vendedor == codigo_vendedor,
+        BDVentaAutoventa.turno_id.in_(turno_ids),
+    ).group_by(BDVentaAutoventa.turno_id).all()
+    efectivo_map = {tid: float(ef or 0) for tid, ef, _tr, _mx in pago_rows}
+    transferencia_map = {tid: float(tr or 0) for tid, _ef, tr, _mx in pago_rows}
+    mixto_map = {tid: float(mx or 0) for tid, _ef, _tr, mx in pago_rows}
+
     unidades_rows = db.session.query(
         BDVentaAutoventa.turno_id,
         func.coalesce(func.sum(BDVentaAutoventaItem.cantidad), 0),
@@ -506,6 +627,9 @@ def historial_resumen_turnos():
             'estado': t.estado,
             'carga_inicial': carga_inicial,
             'ventas_total': ventas_total_map.get(t.id, 0.0),
+            'total_efectivo': efectivo_map.get(t.id, 0.0),
+            'total_transferencia': transferencia_map.get(t.id, 0.0),
+            'total_mixto': mixto_map.get(t.id, 0.0),
             'unidades_vendidas': unidades_vendidas,
             'cambios': cambios_count_map.get(t.id, 0),
             'cambio_returns': cambio_returns,

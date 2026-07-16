@@ -36,6 +36,10 @@ class BDCambio(db.Model):
     visit_id        = db.Column(db.Integer, db.ForeignKey('bd_visitas_clientes.id'), nullable=True)
     fecha           = db.Column(db.Date, nullable=False)
     total_venta     = db.Column(db.Numeric(12, 2), nullable=False, default=0)
+    # Forma de pago del neto del cambio (mismo esquema que BDVentaAutoventa).
+    metodo_pago     = db.Column(db.Enum('efectivo', 'transferencia', 'mixto'), nullable=True)
+    monto_efectivo  = db.Column(db.Numeric(10, 2), nullable=True)
+    monto_transferencia = db.Column(db.Numeric(10, 2), nullable=True)
     comentarios     = db.Column(db.Text, nullable=True)
     # Idempotencia offline: uuid enviado desde la app.
     uuid_origen     = db.Column(db.String(36), unique=True, nullable=True)

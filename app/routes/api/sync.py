@@ -45,7 +45,13 @@ def _procesar_venta(codigo_vendedor, data, uuid):
     if not cliente or cliente.codigo_vendedor != codigo_vendedor:
         return {'uuid': uuid, 'ok': False, 'error': 'Cliente no encontrado'}
     try:
-        venta = _guardar_venta(codigo_vendedor, cliente_id, date.today(), items_data, uuid, por_sync=True)
+        venta = _guardar_venta(
+            codigo_vendedor, cliente_id, date.today(), items_data, uuid,
+            por_sync=True,
+            turno_id=data.get('turno_id'),
+            visit_id=data.get('visit_id'),
+            pago=data,
+        )
         return {'uuid': uuid, 'ok': True, 'consecutivo': venta.consecutivo}
     except Exception as e:
         db.session.rollback()

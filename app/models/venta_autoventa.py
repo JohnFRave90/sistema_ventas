@@ -18,6 +18,11 @@ class BDVentaAutoventa(db.Model):
     visit_id         = db.Column(db.Integer, db.ForeignKey('bd_visitas_clientes.id'), nullable=True)
     fecha            = db.Column(db.Date, nullable=False)
     total            = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+    # Forma de pago capturada en el app. 'mixto' reparte total entre
+    # monto_efectivo + monto_transferencia. NULL en histórico previo a la feature.
+    metodo_pago      = db.Column(db.Enum('efectivo', 'transferencia', 'mixto'), nullable=True)
+    monto_efectivo   = db.Column(db.Numeric(10, 2), nullable=True)
+    monto_transferencia = db.Column(db.Numeric(10, 2), nullable=True)
     enviada_por_sync = db.Column(db.Boolean, default=False, nullable=False)
     uuid_origen      = db.Column(db.String(36), unique=True, nullable=True)
     created_at       = db.Column(db.DateTime, server_default=db.func.now())
