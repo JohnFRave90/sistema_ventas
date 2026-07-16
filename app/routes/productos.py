@@ -25,7 +25,6 @@ def listar_productos():
 @rol_requerido('administrador')
 def crear_producto():
     if request.method == 'POST':
-        codigo = request.form['codigo'].strip()
         nombre = request.form['nombre']
         try:
             precio = validar_precio(request.form.get('precio'), "precio")
@@ -35,7 +34,7 @@ def crear_producto():
         categoria = request.form['categoria']
         activo = 'activo' in request.form
 
-        nuevo = Producto(codigo=codigo, nombre=nombre, precio=precio, categoria=categoria, activo=activo)
+        nuevo = Producto(nombre=nombre, precio=precio, categoria=categoria, activo=activo)
         db.session.add(nuevo)
         db.session.commit()
         flash('Producto creado correctamente.', 'success')

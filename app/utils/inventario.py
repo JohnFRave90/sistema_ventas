@@ -62,14 +62,17 @@ def _consolidar_items(devoluciones):
     return acumulado
 
 
-def calcular_inventario_inicial(despacho_map, devolucion_map, productos_map):
+def calcular_inventario_inicial(despacho_map, devolucion_map, productos_map, orden_fn=None):
     """Unifica despacho + devolución anterior por ``producto_cod``.
 
     :param despacho_map: ``{producto_cod: cantidad_despachada}``
     :param devolucion_map: ``{producto_cod: cantidad_devuelta_anterior}``
     :param productos_map: ``{producto_cod: Producto}`` (para nombre/categoria/precio).
         Puede no contener todos los códigos; los faltantes usan valores por defecto.
-    :returns: lista de dicts ordenada por ``producto_cod`` con la forma del API.
+    :param orden_fn: callable ``codigo -> posición canónica`` del sistema de ventas
+        (``app.utils.productos.orden_index``). Si se omite, se usa ``producto.orden``.
+        Se inyecta para mantener esta función pura/testeable sin depender del modelo.
+    :returns: lista de dicts ordenada por posición canónica (luego nombre).
 
     Reglas:
       - Producto solo en despacho: se incluye.
@@ -94,12 +97,21 @@ def calcular_inventario_inicial(despacho_map, devolucion_map, productos_map):
         categoria = getattr(producto, 'categoria', None) or CATEGORIA_DEFECTO
         precio_attr = getattr(producto, 'precio', None)
         precio = float(precio_attr) if precio_attr is not None else 0.0
+        # Orden canónico del sistema de ventas (posición en la lista fija de
+        # códigos). Fallback a producto.orden solo si no se inyecta orden_fn.
+        if orden_fn is not None:
+            orden_val = orden_fn(codigo)
+        else:
+            orden_attr = getattr(producto, 'orden', None)
+            orden_val = int(orden_attr) if orden_attr is not None else None
 
         items.append({
             'producto_cod': codigo,
             'nombre': nombre,
             'categoria': categoria,
             'precio': precio,
+            # Orden del catálogo de ventas: la app respeta este orden en la UI.
+            'orden': orden_val,
             'cantidad_despacho': cantidad_despacho,
             'cantidad_devolucion_anterior': cantidad_devolucion,
             'cantidad_inicial': cantidad_inicial,
@@ -108,4 +120,12 @@ def calcular_inventario_inicial(despacho_map, devolucion_map, productos_map):
             'unidad': UNIDAD_DEFECTO,
         })
 
+    # Ordenar por el orden del catálogo (nulos al final), desempate por NOMBRE —
+    # mismo criterio que el sistema de ventas (ORDER BY orden, nombre).
+    items.sort(key=lambda it: (
+        it['orden'] is None,
+        it['orden'] if it['orden'] is not None else 0,
+        (it.get('nombre') or '').lower(),
+        it['producto_cod'],
+    ))
     return items

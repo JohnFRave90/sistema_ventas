@@ -11,6 +11,37 @@ from app.models.visita_cliente import BDVisitaCliente
 from app.utils.documentos import generar_consecutivo
 
 
+_METODOS_PAGO = ('efectivo', 'transferencia', 'mixto')
+
+
+def normalizar_pago(data, total=None):
+    """Normaliza los campos de pago de un payload.
+
+    Retorna (metodo_pago, monto_efectivo, monto_transferencia). Para métodos
+    puros los montos quedan en None (el total cuenta completo en su forma). Para
+    'mixto' se conservan los montos enviados; si no vienen y hay total, se deja
+    el efectivo por defecto para no perder el importe.
+    """
+    metodo = data.get('metodo_pago')
+    if metodo not in _METODOS_PAGO:
+        return (None, None, None)
+    if metodo != 'mixto':
+        return (metodo, None, None)
+
+    def _num(v):
+        try:
+            return round(float(v), 2)
+        except (TypeError, ValueError):
+            return None
+
+    efectivo = _num(data.get('monto_efectivo'))
+    transferencia = _num(data.get('monto_transferencia'))
+    if efectivo is None and transferencia is None and total is not None:
+        efectivo = round(float(total), 2)
+        transferencia = 0.0
+    return ('mixto', efectivo, transferencia)
+
+
 def _guardar_venta(
     codigo_vendedor,
     cliente_id,
@@ -20,6 +51,7 @@ def _guardar_venta(
     por_sync=False,
     turno_id=None,
     visit_id=None,
+    pago=None,
 ):
     """Crea BDVentaAutoventa + items. Retorna la venta creada."""
     total = 0
@@ -32,6 +64,8 @@ def _guardar_venta(
         total += subtotal
         items_creados.append((prod, it['cantidad'], subtotal))
 
+    metodo_pago, monto_efectivo, monto_transferencia = normalizar_pago(pago or {}, total)
+
     venta = BDVentaAutoventa(
         consecutivo=generar_consecutivo(BDVentaAutoventa, 'AV'),
         codigo_vendedor=codigo_vendedor,
@@ -40,6 +74,9 @@ def _guardar_venta(
         visit_id=visit_id,
         fecha=fecha,
         total=total,
+        metodo_pago=metodo_pago,
+        monto_efectivo=monto_efectivo,
+        monto_transferencia=monto_transferencia,
         enviada_por_sync=por_sync,
         uuid_origen=uuid_origen
     )
@@ -98,6 +135,7 @@ def registrar_venta():
             return respuesta_ok({
                 'consecutivo': existente.consecutivo,
                 'total': float(existente.total),
+                'metodo_pago': existente.metodo_pago,
                 'items': [{
                     'producto_cod': i.producto_cod,
                     'cantidad': i.cantidad,
@@ -116,6 +154,7 @@ def registrar_venta():
             uuid_origen=uuid_origen,
             turno_id=turno_id,
             visit_id=visit_id,
+            pago=data,
         )
     except ValueError as e:
         return respuesta_error(str(e), 400)
@@ -123,6 +162,7 @@ def registrar_venta():
     return respuesta_ok({
         'consecutivo': venta.consecutivo,
         'total': float(venta.total),
+        'metodo_pago': venta.metodo_pago,
         'items': [{
             'producto_cod': i.producto_cod,
             'cantidad': i.cantidad,
