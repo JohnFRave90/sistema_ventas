@@ -246,6 +246,7 @@ def _procesar_fila(fila, num_fila):
     """
     nombre = (fila.get('nombre') or '').strip()
     codigo_vendedor = (fila.get('codigo_vendedor') or '').strip()
+    telefono = (fila.get('telefono') or '').strip()
 
     if not nombre:
         return {'resultado': 'error', 'fila': num_fila, 'nombre': '(vacío)', 'motivo': 'nombre es requerido'}
@@ -256,7 +257,11 @@ def _procesar_fila(fila, num_fila):
     if not vendedor:
         return {'resultado': 'error', 'fila': num_fila, 'nombre': nombre, 'motivo': f'vendedor "{codigo_vendedor}" no existe'}
 
-    existente = Cliente.query.filter_by(nombre=nombre, codigo_vendedor=codigo_vendedor).first()
+    # El teléfono es la clave única real del cliente (puede cambiar de vendedor o de nombre).
+    if telefono:
+        existente = Cliente.query.filter_by(telefono=telefono).first()
+    else:
+        existente = Cliente.query.filter_by(nombre=nombre, codigo_vendedor=codigo_vendedor).first()
 
     def _safe_float(val):
         try:
@@ -271,6 +276,8 @@ def _procesar_fila(fila, num_fila):
             return None
 
     if existente:
+        existente.nombre = nombre
+        existente.codigo_vendedor = codigo_vendedor
         if fila.get('nombre_tienda'):
             existente.nombre_tienda = fila['nombre_tienda']
         if fila.get('telefono'):
