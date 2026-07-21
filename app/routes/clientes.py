@@ -27,7 +27,7 @@ def listar_clientes():
     vendedores = Vendedor.query.order_by(Vendedor.nombre).all()
 
     def _ubicacion_pendiente(c):
-        if c.latitud is None or c.longitud is None:
+        if not c.activo or c.latitud is None or c.longitud is None:
             return False
         return (
             abs(float(c.latitud) - LATITUD_PANADERIA) < 0.0001
