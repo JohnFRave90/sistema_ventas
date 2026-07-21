@@ -37,10 +37,10 @@ def _to_float(value):
     return float(value) if value is not None else None
 
 
-def _colores_por_vendedor():
+def colores_por_vendedor():
     """Asigna un color estable de PALETA_VENDEDORES a cada vendedor (orden por
     código), para que el mismo vendedor use siempre el mismo color sin importar
-    los filtros aplicados (clientes, ruta y camión comparten el color)."""
+    los filtros aplicados. Usada por el mapa embebido en Clientes TaT."""
     codigos = [v.codigo_vendedor for v in Vendedor.query.order_by(Vendedor.codigo_vendedor).all()]
     return {
         codigo: PALETA_VENDEDORES[i % len(PALETA_VENDEDORES)]
@@ -112,8 +112,6 @@ def recolectar_mapa_ruta(fecha=None, vendedor=None, ruta=None, turno_id=None):
     if _diag:
         print(f'[MAPA DIAG] visitas del día encontradas    = {len(visitas_por_cliente)}', flush=True)
 
-    color_por_vendedor = _colores_por_vendedor()
-
     items = []
     for c in clientes:
         visita = visitas_por_cliente.get(c.id)
@@ -141,7 +139,6 @@ def recolectar_mapa_ruta(fecha=None, vendedor=None, ruta=None, turno_id=None):
             'lng': _to_float(c.longitud),
             'estado': estado,
             'color': color,
-            'color_vendedor': color_por_vendedor.get(c.codigo_vendedor, COLOR_VENDEDOR),
             'hora_llegada': hora_llegada,
             'venta': ventas_por_cliente.get(c.id, 0),
         })
@@ -179,7 +176,7 @@ def recolectar_mapa_ruta(fecha=None, vendedor=None, ruta=None, turno_id=None):
         }
 
     vendedores_mapa = []
-    for code in sorted(codigos):
+    for idx, code in enumerate(sorted(codigos)):
         # Base: puntos del vendedor (y del turno si está filtrado). SIN filtro de fecha,
         # para que la última ubicación conocida siempre sea visible.
         base_q = BDTurnoUbicacion.query.filter(BDTurnoUbicacion.codigo_vendedor == code)
@@ -191,7 +188,7 @@ def recolectar_mapa_ruta(fecha=None, vendedor=None, ruta=None, turno_id=None):
             continue
         puntos_total = base_q.count()
 
-        color = color_por_vendedor.get(code, COLOR_VENDEDOR)
+        color = PALETA_VENDEDORES[idx % len(PALETA_VENDEDORES)]
 
         # Recorrido (polyline) SOLO si está enfocado. Para un vendedor sin turno, se
         # limita al turno de su última ubicación (su jornada más reciente), evitando
@@ -239,14 +236,6 @@ def recolectar_mapa_ruta(fecha=None, vendedor=None, ruta=None, turno_id=None):
     if _diag:
         print(f'[MAPA DIAG] vendedores EN MAPA (con ubicación) = {len(vendedores_mapa)} (enfocado={enfocado})', flush=True)
 
-    # Leyenda de colores por vendedor (solo los que tienen clientes visibles en el mapa).
-    codigos_en_mapa = sorted({item['vendedor'] for item in items if item['vendedor']})
-    nombres_todos = {v.codigo_vendedor: v.nombre for v in Vendedor.query.all()}
-    leyenda_vendedores = [
-        {'codigo': cod, 'nombre': nombres_todos.get(cod, cod), 'color': color_por_vendedor.get(cod, COLOR_VENDEDOR)}
-        for cod in codigos_en_mapa
-    ]
-
     return {
         'fecha': str(fecha),
         'vendedor': vendedor or None,
@@ -254,5 +243,4 @@ def recolectar_mapa_ruta(fecha=None, vendedor=None, ruta=None, turno_id=None):
         'turno_id': turno_id,
         'clientes': items,
         'vendedores': vendedores_mapa,
-        'leyenda_vendedores': leyenda_vendedores,
     }

@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, Response, send_file
+from flask import Blueprint, render_template, request, redirect, url_for, flash, Response, send_file, jsonify
 from datetime import date
 import csv
 import io
@@ -7,6 +7,7 @@ from app.models.vendedor import Vendedor
 from app import db
 from flask_login import login_required
 from app.utils.roles import rol_requerido
+from app.services.mapa_service import colores_por_vendedor, COLOR_VENDEDOR
 
 clientes_bp = Blueprint('clientes', __name__, url_prefix='/clientes')
 
@@ -25,6 +26,17 @@ def listar_clientes():
     clientes = query.order_by(Cliente.codigo_vendedor, Cliente.ruta, Cliente.orden_visita).all()
     vendedores = Vendedor.query.order_by(Vendedor.nombre).all()
 
+    def _ubicacion_pendiente(c):
+        if c.latitud is None or c.longitud is None:
+            return False
+        return (
+            abs(float(c.latitud) - LATITUD_PANADERIA) < 0.0001
+            and abs(float(c.longitud) - LONGITUD_PANADERIA) < 0.0001
+        )
+
+    ids_ubicacion_pendiente = {c.id for c in clientes if _ubicacion_pendiente(c)}
+
+    color_por_vendedor = colores_por_vendedor()
     clientes_geo = [
         {
             'nombre': c.nombre,
@@ -33,11 +45,18 @@ def listar_clientes():
             'direccion': c.direccion or '',
             'barrio': c.barrio or '',
             'vendedor': c.codigo_vendedor,
+            'color': color_por_vendedor.get(c.codigo_vendedor, COLOR_VENDEDOR),
             'lat': float(c.latitud),
             'lng': float(c.longitud),
+            'pendiente': c.id in ids_ubicacion_pendiente,
         }
         for c in clientes
         if c.latitud is not None and c.longitud is not None
+    ]
+    leyenda_vendedores = [
+        {'codigo': v.codigo_vendedor, 'nombre': v.nombre, 'color': color_por_vendedor.get(v.codigo_vendedor, COLOR_VENDEDOR)}
+        for v in vendedores
+        if any(cg['vendedor'] == v.codigo_vendedor for cg in clientes_geo)
     ]
 
     return render_template(
@@ -46,6 +65,8 @@ def listar_clientes():
         vendedores=vendedores,
         vendedor_filtro=vendedor_filtro,
         clientes_geo=clientes_geo,
+        leyenda_vendedores=leyenda_vendedores,
+        ids_ubicacion_pendiente=ids_ubicacion_pendiente,
     )
 
 
@@ -150,6 +171,88 @@ def toggle_cliente(id):
     estado = 'activado' if cliente.activo else 'desactivado'
     flash(f'Cliente {cliente.nombre} {estado}.', 'success')
     return redirect(url_for('clientes.listar_clientes'))
+
+
+@clientes_bp.route('/<int:id>/toggle-ajax', methods=['POST'])
+@login_required
+@rol_requerido('administrador')
+def toggle_cliente_ajax(id):
+    cliente = Cliente.query.get_or_404(id)
+    cliente.activo = not cliente.activo
+    db.session.commit()
+    return jsonify({'ok': True, 'activo': cliente.activo})
+
+
+@clientes_bp.route('/activar-lote', methods=['POST'])
+@login_required
+@rol_requerido('administrador')
+def activar_lote_clientes():
+    data = request.get_json(silent=True) or {}
+    try:
+        ids = [int(i) for i in (data.get('ids') or [])]
+    except (TypeError, ValueError):
+        return jsonify({'ok': False, 'error': 'ids inválidos'}), 400
+    activo = bool(data.get('activo'))
+    if not ids:
+        return jsonify({'ok': False, 'error': 'No se seleccionó ningún cliente'}), 400
+
+    actualizados = Cliente.query.filter(Cliente.id.in_(ids)).update(
+        {'activo': activo}, synchronize_session=False
+    )
+    db.session.commit()
+    return jsonify({'ok': True, 'actualizados': actualizados, 'activo': activo})
+
+
+@clientes_bp.route('/ordenar', methods=['GET'])
+@login_required
+@rol_requerido('administrador')
+def ordenar_clientes():
+    vendedores = Vendedor.query.order_by(Vendedor.nombre).all()
+    vendedor = (request.args.get('vendedor') or '').strip()
+    ruta = (request.args.get('ruta') or '').strip()
+
+    rutas = []
+    clientes = []
+    if vendedor:
+        rutas = [
+            r[0] for r in db.session.query(Cliente.ruta).filter(
+                Cliente.codigo_vendedor == vendedor,
+                Cliente.ruta.isnot(None), Cliente.ruta != '',
+            ).distinct().order_by(Cliente.ruta).all()
+        ]
+        if ruta:
+            clientes = Cliente.query.filter_by(
+                codigo_vendedor=vendedor, ruta=ruta
+            ).order_by(Cliente.orden_visita.asc(), Cliente.nombre.asc()).all()
+
+    return render_template(
+        'clientes/ordenar.html',
+        vendedores=vendedores,
+        rutas=rutas,
+        clientes=clientes,
+        filtro_vendedor=vendedor,
+        filtro_ruta=ruta,
+    )
+
+
+@clientes_bp.route('/ordenar/guardar', methods=['POST'])
+@login_required
+@rol_requerido('administrador')
+def guardar_orden_clientes():
+    data = request.get_json(silent=True) or {}
+    try:
+        ids = [int(i) for i in (data.get('ids') or [])]
+    except (TypeError, ValueError):
+        return jsonify({'ok': False, 'error': 'ids inválidos'}), 400
+    if not ids:
+        return jsonify({'ok': False, 'error': 'Lista vacía'}), 400
+
+    clientes = {c.id: c for c in Cliente.query.filter(Cliente.id.in_(ids)).all()}
+    for posicion, cid in enumerate(ids, start=1):
+        if cid in clientes:
+            clientes[cid].orden_visita = posicion
+    db.session.commit()
+    return jsonify({'ok': True, 'actualizados': len(clientes)})
 
 
 @clientes_bp.route('/exportar')

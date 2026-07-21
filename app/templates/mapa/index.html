@@ -84,19 +84,10 @@
       </select>
     </div>
     <div class="col-12 col-md-9 small">
-      <span class="small text-muted me-1">Ícono = estado:</span>
-      <span class="badge bg-secondary"><i class="bi bi-hourglass-split me-1"></i>Pendiente</span>
-      <span class="badge bg-secondary"><i class="bi bi-check-lg me-1"></i>Visitado / venta</span>
-      <span class="badge bg-secondary"><i class="bi bi-exclamation-triangle-fill me-1"></i>Excepción</span>
-    </div>
-  </div>
-
-  <div class="row g-2 mb-2">
-    <div class="col-12 small">
-      <span class="small text-muted me-1">Color del punto = vendedor:</span>
-      {% for v in data.leyenda_vendedores %}
-        <span class="badge" style="background:{{ v.color }}">{{ v.nombre }}</span>
-      {% endfor %}
+      <span class="badge" style="background:#9ca3af">Pendiente</span>
+      <span class="badge" style="background:#22c55e">Visitado / venta</span>
+      <span class="badge" style="background:#f97316">Excepción</span>
+      <span class="badge bg-dark"><i class="bi bi-truck me-1"></i>Vendedor (color propio)</span>
     </div>
   </div>
 
@@ -165,7 +156,7 @@
   clientes.forEach(function (c) {
     if (c.lat == null || c.lng == null) return;
     const glyph = ESTADO_ICON[c.estado] || 'bi-geo-alt-fill';
-    const marker = L.marker([c.lat, c.lng], { icon: makeIcon(c.color_vendedor, glyph) }).addTo(map);
+    const marker = L.marker([c.lat, c.lng], { icon: makeIcon(c.color, glyph) }).addTo(map);
     const ventaTxt = c.venta ? ('$' + Number(c.venta).toLocaleString()) : '—';
     const llegada = c.hora_llegada ? new Date(c.hora_llegada).toLocaleString() : '—';
     marker.bindPopup(

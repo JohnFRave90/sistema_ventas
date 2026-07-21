@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+{% block title %}Ordenar visitas{% endblock %}
+
+{% block content %}
+<input type="hidden" id="csrfToken" value="{{ csrf_token() }}">
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0"><i class="bi bi-list-check me-1"></i>Ordenar visitas y activar clientes</h4>
+  <a href="{{ url_for('clientes.listar_clientes') }}" class="btn btn-outline-secondary btn-sm">
+    <i class="bi bi-arrow-left me-1"></i>Volver a Clientes
+  </a>
+</div>
+
+<form method="GET" class="row g-2 mb-3">
+  <div class="col-6 col-md-3">
+    <label class="form-label small mb-0 fw-bold">Vendedor</label>
+    <select name="vendedor" class="form-select form-select-sm" onchange="this.form.submit()">
+      <option value="">Selecciona...</option>
+      {% for v in vendedores %}
+        <option value="{{ v.codigo_vendedor }}" {{ 'selected' if filtro_vendedor == v.codigo_vendedor }}>
+          {{ v.codigo_vendedor }} — {{ v.nombre }}
+        </option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-6 col-md-3">
+    <label class="form-label small mb-0 fw-bold">Ruta</label>
+    <select name="ruta" class="form-select form-select-sm" onchange="this.form.submit()" {{ 'disabled' if not filtro_vendedor }}>
+      <option value="">Selecciona...</option>
+      {% for r in rutas %}
+        <option value="{{ r }}" {{ 'selected' if filtro_ruta == r }}>{{ r }}</option>
+      {% endfor %}
+    </select>
+    {% if filtro_vendedor %}<input type="hidden" name="vendedor" value="{{ filtro_vendedor }}">{% endif %}
+  </div>
+</form>
+
+{% if filtro_vendedor and not filtro_ruta %}
+  <div class="alert alert-info">Selecciona una ruta para ver sus clientes.</div>
+{% elif not filtro_vendedor %}
+  <div class="alert alert-info">Selecciona un vendedor y una ruta para empezar.</div>
+{% elif not clientes %}
+  <div class="alert alert-warning">Esta ruta no tiene clientes.</div>
+{% else %}
+
+  <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+    <div class="form-check mb-0">
+      <input class="form-check-input" type="checkbox" id="chkTodos">
+      <label class="form-check-label small" for="chkTodos">Seleccionar todos</label>
+    </div>
+    <button type="button" id="btnActivarLote" class="btn btn-sm btn-outline-success" disabled>
+      <i class="bi bi-check-circle me-1"></i>Activar seleccionados
+    </button>
+    <button type="button" id="btnDesactivarLote" class="btn btn-sm btn-outline-danger" disabled>
+      <i class="bi bi-x-circle me-1"></i>Desactivar seleccionados
+    </button>
+    <span class="text-muted small ms-auto"><i class="bi bi-arrows-move me-1"></i>Arrastra las filas para reordenar</span>
+    <button type="button" id="btnGuardarOrden" class="btn btn-sm btn-primary" disabled>
+      <i class="bi bi-save me-1"></i>Guardar orden
+    </button>
+  </div>
+
+  <div id="listaClientes" class="list-group">
+    {% for c in clientes %}
+    <div class="list-group-item d-flex align-items-center gap-2" data-id="{{ c.id }}">
+      <i class="bi bi-grip-vertical text-muted" style="cursor:grab;"></i>
+      <input type="checkbox" class="form-check-input chkCliente" data-id="{{ c.id }}">
+      <span class="badge bg-secondary orden-badge" style="min-width:2.2em;">{{ c.orden_visita or '—' }}</span>
+      <div class="flex-grow-1">
+        <div>
+          <strong>{{ c.nombre_tienda or c.nombre }}</strong>
+          {% if c.nombre_tienda %}<span class="text-muted small">({{ c.nombre }})</span>{% endif %}
+        </div>
+        <div class="text-muted small">
+          {{ c.barrio or '—' }} · {{ c.telefono or '—' }}
+        </div>
+      </div>
+      <div class="form-check form-switch mb-0">
+        <input class="form-check-input switchActivo" type="checkbox" role="switch"
+               data-id="{{ c.id }}" data-url="{{ url_for('clientes.toggle_cliente_ajax', id=c.id) }}"
+               {{ 'checked' if c.activo }}>
+        <label class="form-check-label small">{{ 'Activo' if c.activo else 'Inactivo' }}</label>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+{% endif %}
+
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+<script>
+(function () {
+  const lista = document.getElementById('listaClientes');
+  if (!lista) return;
+
+  const csrfToken = document.getElementById('csrfToken').value;
+  const btnGuardar = document.getElementById('btnGuardarOrden');
+  const btnActivar = document.getElementById('btnActivarLote');
+  const btnDesactivar = document.getElementById('btnDesactivarLote');
+  const chkTodos = document.getElementById('chkTodos');
+
+  function jsonFetch(url, payload) {
+    return fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+      body: JSON.stringify(payload),
+    }).then(r => r.json());
+  }
+
+  // --- Drag & drop ---
+  new Sortable(lista, {
+    animation: 150,
+    handle: '.bi-grip-vertical',
+    onEnd: function () {
+      btnGuardar.disabled = false;
+    },
+  });
+
+  btnGuardar.addEventListener('click', function () {
+    const ids = Array.from(lista.querySelectorAll('[data-id]'))
+      .filter(el => el.classList.contains('list-group-item'))
+      .map(el => parseInt(el.dataset.id, 10));
+    btnGuardar.disabled = true;
+    btnGuardar.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Guardando...';
+    jsonFetch("{{ url_for('clientes.guardar_orden_clientes') }}", { ids: ids })
+      .then(function (resp) {
+        if (resp.ok) {
+          ids.forEach(function (id, idx) {
+            const badge = lista.querySelector('[data-id="' + id + '"].list-group-item .orden-badge');
+            if (badge) badge.textContent = idx + 1;
+          });
+        }
+        btnGuardar.innerHTML = '<i class="bi bi-save me-1"></i>Guardar orden';
+      })
+      .catch(function () {
+        btnGuardar.disabled = false;
+        btnGuardar.innerHTML = '<i class="bi bi-save me-1"></i>Guardar orden';
+        alert('No se pudo guardar el orden. Intenta de nuevo.');
+      });
+  });
+
+  // --- Switch individual (instantáneo) ---
+  lista.querySelectorAll('.switchActivo').forEach(function (sw) {
+    sw.addEventListener('change', function () {
+      sw.disabled = true;
+      jsonFetch(sw.dataset.url, {})
+        .then(function (resp) {
+          sw.disabled = false;
+          if (resp.ok) {
+            sw.checked = resp.activo;
+            sw.nextElementSibling.textContent = resp.activo ? 'Activo' : 'Inactivo';
+          }
+        })
+        .catch(function () {
+          sw.disabled = false;
+          sw.checked = !sw.checked;
+          alert('No se pudo actualizar el estado. Intenta de nuevo.');
+        });
+    });
+  });
+
+  // --- Selección múltiple + acciones en lote ---
+  function idsSeleccionados() {
+    return Array.from(lista.querySelectorAll('.chkCliente:checked')).map(el => parseInt(el.dataset.id, 10));
+  }
+
+  function actualizarBotonesLote() {
+    const hay = idsSeleccionados().length > 0;
+    btnActivar.disabled = !hay;
+    btnDesactivar.disabled = !hay;
+  }
+
+  lista.querySelectorAll('.chkCliente').forEach(function (chk) {
+    chk.addEventListener('change', actualizarBotonesLote);
+  });
+
+  chkTodos.addEventListener('change', function () {
+    lista.querySelectorAll('.chkCliente').forEach(function (chk) { chk.checked = chkTodos.checked; });
+    actualizarBotonesLote();
+  });
+
+  function activarDesactivarLote(activo) {
+    const ids = idsSeleccionados();
+    if (ids.length === 0) return;
+    if (!confirm((activo ? 'Activar' : 'Desactivar') + ' ' + ids.length + ' cliente(s)?')) return;
+    jsonFetch("{{ url_for('clientes.activar_lote_clientes') }}", { ids: ids, activo: activo })
+      .then(function (resp) {
+        if (resp.ok) {
+          ids.forEach(function (id) {
+            const sw = lista.querySelector('.switchActivo[data-id="' + id + '"]');
+            if (sw) {
+              sw.checked = activo;
+              sw.nextElementSibling.textContent = activo ? 'Activo' : 'Inactivo';
+            }
+          });
+        } else {
+          alert(resp.error || 'No se pudo actualizar.');
+        }
+      })
+      .catch(function () { alert('No se pudo actualizar. Intenta de nuevo.'); });
+  }
+
+  btnActivar.addEventListener('click', function () { activarDesactivarLote(true); });
+  btnDesactivar.addEventListener('click', function () { activarDesactivarLote(false); });
+})();
+</script>
+{% endblock %}
