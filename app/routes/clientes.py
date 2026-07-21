@@ -10,6 +10,9 @@ from app.utils.roles import rol_requerido
 
 clientes_bp = Blueprint('clientes', __name__, url_prefix='/clientes')
 
+LATITUD_PANADERIA = 6.98993839765757
+LONGITUD_PANADERIA = -73.0472798998108
+
 
 @clientes_bp.route('/')
 @login_required
@@ -75,16 +78,14 @@ def crear_cliente():
         lat = (request.form.get('latitud') or '').strip()
         lng = (request.form.get('longitud') or '').strip()
         orden = (request.form.get('orden_visita') or '').strip()
-        if lat:
-            try:
-                nuevo.latitud = float(lat)
-            except ValueError:
-                pass
-        if lng:
-            try:
-                nuevo.longitud = float(lng)
-            except ValueError:
-                pass
+        try:
+            nuevo.latitud = float(lat) if lat else LATITUD_PANADERIA
+        except ValueError:
+            nuevo.latitud = LATITUD_PANADERIA
+        try:
+            nuevo.longitud = float(lng) if lng else LONGITUD_PANADERIA
+        except ValueError:
+            nuevo.longitud = LONGITUD_PANADERIA
         if orden:
             try:
                 nuevo.orden_visita = int(orden)
@@ -128,8 +129,8 @@ def editar_cliente(id):
         lat = (request.form.get('latitud') or '').strip()
         lng = (request.form.get('longitud') or '').strip()
         orden = (request.form.get('orden_visita') or '').strip()
-        cliente.latitud = float(lat) if lat else None
-        cliente.longitud = float(lng) if lng else None
+        cliente.latitud = float(lat) if lat else LATITUD_PANADERIA
+        cliente.longitud = float(lng) if lng else LONGITUD_PANADERIA
         cliente.orden_visita = int(orden) if orden else None
 
         db.session.commit()
@@ -293,9 +294,13 @@ def _procesar_fila(fila, num_fila):
         lat = _safe_float(fila.get('latitud'))
         if lat is not None:
             existente.latitud = lat
+        elif existente.latitud is None:
+            existente.latitud = LATITUD_PANADERIA
         lng = _safe_float(fila.get('longitud'))
         if lng is not None:
             existente.longitud = lng
+        elif existente.longitud is None:
+            existente.longitud = LONGITUD_PANADERIA
         if fila.get('ruta'):
             existente.ruta = fila['ruta']
         orden = _safe_int(fila.get('orden_visita'))
@@ -303,6 +308,8 @@ def _procesar_fila(fila, num_fila):
             existente.orden_visita = orden
         return {'resultado': 'actualizado'}
     else:
+        lat = _safe_float(fila.get('latitud'))
+        lng = _safe_float(fila.get('longitud'))
         nuevo = Cliente(
             codigo_cliente=Cliente.siguiente_codigo(),
             nombre=nombre,
@@ -314,8 +321,8 @@ def _procesar_fila(fila, num_fila):
             barrio=fila.get('barrio') or None,
             ciudad=fila.get('ciudad') or None,
             ruta=fila.get('ruta') or None,
-            latitud=_safe_float(fila.get('latitud')),
-            longitud=_safe_float(fila.get('longitud')),
+            latitud=lat if lat is not None else LATITUD_PANADERIA,
+            longitud=lng if lng is not None else LONGITUD_PANADERIA,
             orden_visita=_safe_int(fila.get('orden_visita')),
             activo=True,
         )
