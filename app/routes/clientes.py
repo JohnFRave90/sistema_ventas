@@ -379,6 +379,16 @@ def _procesar_fila(fila, num_fila):
         except (ValueError, TypeError):
             return None
 
+    def _safe_bool(val, default=None):
+        if val in (None, ''):
+            return default
+        val = str(val).strip().lower()
+        if val in ('1', 'true', 'si', 'sí', 'yes', 'x'):
+            return True
+        if val in ('0', 'false', 'no'):
+            return False
+        return default
+
     if existente:
         existente.nombre = nombre
         existente.codigo_vendedor = codigo_vendedor
@@ -409,6 +419,9 @@ def _procesar_fila(fila, num_fila):
         orden = _safe_int(fila.get('orden_visita'))
         if orden is not None:
             existente.orden_visita = orden
+        activo = _safe_bool(fila.get('activo'))
+        if activo is not None:
+            existente.activo = activo
         return {'resultado': 'actualizado'}
     else:
         lat = _safe_float(fila.get('latitud'))
@@ -427,7 +440,7 @@ def _procesar_fila(fila, num_fila):
             latitud=lat if lat is not None else LATITUD_PANADERIA,
             longitud=lng if lng is not None else LONGITUD_PANADERIA,
             orden_visita=_safe_int(fila.get('orden_visita')),
-            activo=True,
+            activo=_safe_bool(fila.get('activo'), default=True),
         )
         db.session.add(nuevo)
         db.session.flush()  # necesario para que siguiente_codigo() vea la fila insertada
