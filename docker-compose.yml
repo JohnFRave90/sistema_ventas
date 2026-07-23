@@ -35,7 +35,12 @@ services:
 
     ports:
 
-      - "127.0.0.1:5000:5000"
+      # TEMPORAL: abierto a 0.0.0.0 (HTTP plano) porque la app móvil todavía
+      # no logra loguearse contra https://ventas.incolpan.com (el cambio de
+      # URL que reportó el equipo móvil no resolvió el problema el 2026-07-23,
+      # pendiente investigar la causa real). Volver a "127.0.0.1:5000:5000"
+      # cuando se confirme login funcionando con el puerto cerrado.
+      - "5000:5000"
 
     volumes:
 
