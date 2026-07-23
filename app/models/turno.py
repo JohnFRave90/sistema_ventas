@@ -15,6 +15,11 @@ class BDTurno(db.Model):
     hora_inicio = db.Column(db.Time, nullable=False)
     hora_fin = db.Column(db.Time, nullable=True)
     estado = db.Column(db.String(12), nullable=False, default='abierto')
+    # Modo de trabajo del turno: 'autoventa' (vende del vehículo, /ventas) o
+    # 'preventa' (toma pedidos, /pedidos). Fuente de verdad DURABLE del modo para que
+    # el resumen agregue la tabla correcta (ventas vs pedidos). NULL en turnos legados
+    # → el resumen cae a 'autoventa' (o al hint sales_mode del app) por compatibilidad.
+    modo = db.Column(db.Enum('autoventa', 'preventa'), nullable=True)
     comentarios = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, server_default=db.func.now(), nullable=False)
     updated_at = db.Column(

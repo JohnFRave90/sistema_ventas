@@ -10,6 +10,8 @@ from app.models.cambio import BDCambio, BDCambioItem
 from app.models.despachos import BDDespacho, BDDespachoItem
 from app.models.devolucion_item import BDDevolucionItem
 from app.models.devoluciones import BDDevolucion
+from app.models.pedido_item import BDPedidoItem
+from app.models.pedidos import BDPedido
 from app.models.producto import Producto
 from app.models.turno import BDTurno
 from app.models.venta_autoventa import BDVentaAutoventa, BDVentaAutoventaItem
@@ -40,6 +42,7 @@ def _serializar_turno(turno: BDTurno):
         'hora_inicio': str(turno.hora_inicio) if turno.hora_inicio else None,
         'hora_fin': str(turno.hora_fin) if turno.hora_fin else None,
         'estado': turno.estado,
+        'modo': turno.modo,
         'comentarios': turno.comentarios,
     }
 
@@ -56,11 +59,138 @@ def _obtener_turno_referencia(codigo_vendedor: str) -> Optional[BDTurno]:
     return BDTurno.query.filter_by(codigo_vendedor=codigo_vendedor).order_by(BDTurno.id.desc()).first()
 
 
-def _filtro_turno_o_fecha(turno: BDTurno, turno_col, fecha_col):
+def _filtro_turno_o_fecha(turno: BDTurno, turno_col, fecha_col, incluir_null_fecha: bool = True):
+    """Filtro de atribución de un registro a un turno.
+
+    Siempre incluye lo ligado por ``turno_id``. Además, cuando ``incluir_null_fecha``
+    es True, incluye los registros con ``turno_id`` NULL de la MISMA fecha (creados
+    offline antes de resolver el turno). Ese fallback por fecha SOLO debe activarse
+    para UN turno por (vendedor, fecha) — el turno primario — para no atribuir la
+    misma venta a todos los turnos del día (ver ``_es_turno_primario_de_fecha``).
+    """
+    if not incluir_null_fecha:
+        return turno_col == turno.id
     return or_(
         turno_col == turno.id,
         and_(turno_col.is_(None), fecha_col == turno.fecha),
     )
+
+
+def _es_turno_primario_de_fecha(turno: BDTurno) -> bool:
+    """True si ``turno`` es el turno primario de su fecha para el vendedor.
+
+    Primario = el de mayor id (el más reciente) entre los turnos del vendedor en esa
+    fecha. Las ventas con ``turno_id`` NULL de esa fecha se atribuyen SOLO a él, de
+    forma determinista, para que una venta NUNCA cuente en varios turnos del mismo día.
+    """
+    max_id = db.session.query(func.max(BDTurno.id)).filter(
+        BDTurno.codigo_vendedor == turno.codigo_vendedor,
+        BDTurno.fecha == turno.fecha,
+    ).scalar()
+    return max_id == turno.id
+
+
+def _resolver_sales_mode(turno: BDTurno) -> str:
+    """Modo del turno para agregar la fuente correcta (ventas vs pedidos).
+
+    Autoridad DURABLE = ``turno.modo`` (persistido al iniciar el turno). Si es NULL
+    (turno legado), se acepta el hint ``sales_mode`` del app (el modo ligado al turno
+    en el dispositivo) y, en último caso, se asume ``autoventa`` por compatibilidad.
+    NUNCA se infiere el modo de si existen ventas o pedidos.
+    """
+    if turno.modo in ('autoventa', 'preventa'):
+        return turno.modo
+    hint = (request.args.get('sales_mode') or '').strip()
+    if hint in ('autoventa', 'preventa'):
+        return hint
+    return 'autoventa'
+
+
+def _resumen_comercial_preventa(codigo_vendedor: str, turno: BDTurno):
+    """Agrega el bloque comercial de un turno de PREVENTA desde ``bd_pedidos``.
+
+    Devuelve las MISMAS claves que el bloque de autoventa (para reutilizar el mismo
+    adaptador en el app), pero calculadas sobre pedidos del turno EXACTO, excluyendo
+    los cancelados. El total de un pedido = suma de subtotales de sus ítems (BDPedido
+    no guarda total). Los montos de pago son el pago PACTADO al tomar el pedido
+    (el app los etiqueta como "esperado"); mismo reparto de mixto que autoventa, con
+    el invariante efectivo + transferencia = total.
+    """
+    pedido_filter = (
+        BDPedido.codigo_vendedor == codigo_vendedor,
+        BDPedido.turno_id == turno.id,
+        BDPedido.estado != 'cancelado',
+    )
+
+    # Total y desglose de pago por pedido (N pequeño → se agrega en Python, decimal-safe).
+    pago_rows = db.session.query(
+        BDPedido.id,
+        BDPedido.metodo_pago,
+        BDPedido.monto_efectivo,
+        func.coalesce(func.sum(BDPedidoItem.subtotal), 0),
+    ).join(
+        BDPedidoItem, BDPedidoItem.pedido_id == BDPedido.id,
+    ).filter(*pedido_filter).group_by(
+        BDPedido.id, BDPedido.metodo_pago, BDPedido.monto_efectivo,
+    ).all()
+
+    total = 0.0
+    efectivo = 0.0
+    transferencia = 0.0
+    mixto = 0.0
+    orders_count = 0
+    for _pid, metodo, m_efe, ptotal in pago_rows:
+        ptotal = float(ptotal or 0)
+        total += ptotal
+        orders_count += 1
+        if metodo == 'transferencia':
+            transferencia += ptotal
+        elif metodo == 'mixto':
+            efe = float(m_efe or 0)
+            efectivo += efe
+            transferencia += (ptotal - efe)
+            mixto += ptotal
+        else:  # 'efectivo' o NULL (histórico) → efectivo
+            efectivo += ptotal
+
+    # Consolidado de productos pedidos, preservando el orden del backend.
+    prod_rows = db.session.query(
+        BDPedidoItem.producto_cod,
+        func.coalesce(func.sum(BDPedidoItem.cantidad), 0),
+        func.coalesce(func.sum(BDPedidoItem.subtotal), 0),
+        Producto.nombre,
+        Producto.orden,
+    ).join(
+        BDPedido, BDPedido.id == BDPedidoItem.pedido_id,
+    ).outerjoin(
+        Producto, Producto.codigo == BDPedidoItem.producto_cod,
+    ).filter(*pedido_filter).group_by(
+        BDPedidoItem.producto_cod, Producto.nombre, Producto.orden,
+    ).order_by(
+        func.coalesce(Producto.orden, 999999), BDPedidoItem.producto_cod,
+    ).all()
+
+    productos = [
+        {
+            'producto_cod': cod,
+            'nombre': nombre or cod,
+            'cantidad': int(cantidad or 0),
+            'total': float(subtotal or 0),
+            'orden': orden,
+        }
+        for (cod, cantidad, subtotal, nombre, orden) in prod_rows
+    ]
+    units = sum(p['cantidad'] for p in productos)
+
+    return {
+        'total_sold': total,
+        'total_efectivo': efectivo,
+        'total_transferencia': transferencia,
+        'total_mixto': mixto,
+        'units_sold': units,
+        'productos_vendidos': productos,
+        'orders_count': orders_count,
+    }
 
 
 @api_bp.route('/turnos/inicio', methods=['POST'])
@@ -77,8 +207,17 @@ def iniciar_turno():
     except (ValueError, TypeError):
         return respuesta_error('Datos invalidos para iniciar turno', 400)
 
+    modo = data.get('modo')
+    if modo not in ('autoventa', 'preventa'):
+        modo = None
+
     abierto = BDTurno.query.filter_by(codigo_vendedor=codigo_vendedor, estado='abierto').first()
     if abierto:
+        # First-write-wins: si el turno abierto aún no tiene modo y el app lo envía,
+        # se fija (un turno conserva su modo hasta cerrarse). Nunca se sobreescribe.
+        if abierto.modo is None and modo is not None:
+            abierto.modo = modo
+            db.session.commit()
         return respuesta_ok(_serializar_turno(abierto))
 
     existentes_vendedor = BDTurno.query.filter_by(
@@ -101,6 +240,7 @@ def iniciar_turno():
         turno_numero=turno_numero,
         hora_inicio=hora_inicio,
         estado='abierto',
+        modo=modo,
         comentarios=data.get('comentarios'),
     )
     db.session.add(turno)
@@ -199,6 +339,7 @@ def resumen_turno_actual():
         return respuesta_ok({
             'turno_id': None,
             'fecha': str(date.today()),
+            'sales_mode': 'autoventa',
             'completed_visits': 0,
             'exception_visits': 0,
             'checked_stock_items': 0,
@@ -209,10 +350,15 @@ def resumen_turno_actual():
             'total_transferencia': 0,
             'total_mixto': 0,
             'productos_vendidos': [],
+            'orders_count': 0,
             'returns_handled': 0,
             'units_remaining': 0,
             'attended_customers': [],
         })
+
+    # Las ventas con turno_id NULL de esta fecha se atribuyen SOLO al turno primario
+    # (el más reciente del día) para no contarlas en varios turnos de la misma fecha.
+    incluir_null_ventas = _es_turno_primario_de_fecha(turno)
 
     # Visitas completadas (done) - count ALL events, not distinct clients
     visitas_completadas = db.session.query(
@@ -249,7 +395,7 @@ def resumen_turno_actual():
     venta_cliente_ids = {
         cid for (cid,) in db.session.query(BDVentaAutoventa.cliente_id).filter(
             BDVentaAutoventa.codigo_vendedor == codigo_vendedor,
-            _filtro_turno_o_fecha(turno, BDVentaAutoventa.turno_id, BDVentaAutoventa.fecha),
+            _filtro_turno_o_fecha(turno, BDVentaAutoventa.turno_id, BDVentaAutoventa.fecha, incluir_null_ventas),
         ).distinct().all()
     }
     cambio_cliente_ids = {
@@ -316,7 +462,7 @@ def resumen_turno_actual():
         BDVentaAutoventa.id == BDVentaAutoventaItem.autoventa_id,
     ).filter(
         BDVentaAutoventa.codigo_vendedor == codigo_vendedor,
-        _filtro_turno_o_fecha(turno, BDVentaAutoventa.turno_id, BDVentaAutoventa.fecha),
+        _filtro_turno_o_fecha(turno, BDVentaAutoventa.turno_id, BDVentaAutoventa.fecha, incluir_null_ventas),
     )
 
     # Total vendido en dinero
@@ -324,19 +470,27 @@ def resumen_turno_actual():
         func.coalesce(func.sum(BDVentaAutoventa.total), 0)
     ).filter(
         BDVentaAutoventa.codigo_vendedor == codigo_vendedor,
-        _filtro_turno_o_fecha(turno, BDVentaAutoventa.turno_id, BDVentaAutoventa.fecha),
+        _filtro_turno_o_fecha(turno, BDVentaAutoventa.turno_id, BDVentaAutoventa.fecha, incluir_null_ventas),
     )
 
-    # Desglose por FORMA DE PAGO en cubetas mutuamente excluyentes: efectivo,
-    # transferencia y mixto suman el total completo de la venta según su método
-    # (efectivo + transferencia + mixto = total_sold). NULL (histórico) = efectivo.
+    # Desglose por FORMA DE PAGO. INVARIANTE: efectivo + transferencia = total_sold.
+    # Una venta MIXTA reparte su importe: la porción en efectivo (monto_efectivo) va a
+    # la cubeta de efectivo y el resto (total - monto_efectivo) a la de transferencia,
+    # de modo que nunca se pierde ni se duplica dinero. NULL (histórico) = efectivo.
+    # `mixto` es una métrica INFORMATIVA (bruto de las ventas mixtas): NO se suma al
+    # gran total (ya está contenido dentro de efectivo + transferencia).
+    # Fallback defensivo: si monto_efectivo es NULL en una venta mixta (registro
+    # legado sin split), se trata como 0 → todo el importe cae en transferencia; no
+    # se fabrica un split inexistente.
+    mixto_efectivo = func.coalesce(BDVentaAutoventa.monto_efectivo, 0)
     efectivo_expr = case(
         (BDVentaAutoventa.metodo_pago == 'transferencia', 0),
-        (BDVentaAutoventa.metodo_pago == 'mixto', 0),
+        (BDVentaAutoventa.metodo_pago == 'mixto', mixto_efectivo),
         else_=BDVentaAutoventa.total,
     )
     transferencia_expr = case(
         (BDVentaAutoventa.metodo_pago == 'transferencia', BDVentaAutoventa.total),
+        (BDVentaAutoventa.metodo_pago == 'mixto', BDVentaAutoventa.total - mixto_efectivo),
         else_=0,
     )
     mixto_expr = case(
@@ -349,7 +503,7 @@ def resumen_turno_actual():
         func.coalesce(func.sum(mixto_expr), 0),
     ).filter(
         BDVentaAutoventa.codigo_vendedor == codigo_vendedor,
-        _filtro_turno_o_fecha(turno, BDVentaAutoventa.turno_id, BDVentaAutoventa.fecha),
+        _filtro_turno_o_fecha(turno, BDVentaAutoventa.turno_id, BDVentaAutoventa.fecha, incluir_null_ventas),
     )
 
     # Consolidado de ventas por producto (para el recibo "Resumen de ventas").
@@ -366,7 +520,7 @@ def resumen_turno_actual():
         Producto, Producto.codigo == BDVentaAutoventaItem.producto_cod,
     ).filter(
         BDVentaAutoventa.codigo_vendedor == codigo_vendedor,
-        _filtro_turno_o_fecha(turno, BDVentaAutoventa.turno_id, BDVentaAutoventa.fecha),
+        _filtro_turno_o_fecha(turno, BDVentaAutoventa.turno_id, BDVentaAutoventa.fecha, incluir_null_ventas),
     ).group_by(
         BDVentaAutoventaItem.producto_cod, Producto.nombre, Producto.orden,
     ).order_by(
@@ -420,14 +574,30 @@ def resumen_turno_actual():
     ]
     returns_handled = int(devoluciones_query.scalar() or 0)
     cambio_returns = int(cambio_returns_query.scalar() or 0)
-    # units_remaining = cargado - vendido + devoluciones_reales + devoluciones_por_cambio
-    # 'units_sold' ya incluye la pierna de venta de cada cambio (vía BDVentaAutoventa).
-    # 'cambio_returns' cuenta los productos que regresan físicamente vía intercambios.
+    # units_remaining SIEMPRE se calcula sobre la VENTA de autoventa (movimiento real
+    # del inventario del vehículo). En preventa el inventario NO se toca, así que se
+    # usa units_sold de ventas (0 en un turno de preventa puro), no las unidades pedidas.
     units_remaining = max(0, units_loaded - units_sold + returns_handled + cambio_returns)
+
+    # ── Resumen COMERCIAL según el MODO del turno (ventas vs pedidos) ──────────────
+    # autoventa → agrega ventas (BDVentaAutoventa); preventa → agrega pedidos (BDPedido).
+    # Nunca se fuerzan pedidos a la tabla de ventas ni viceversa.
+    sales_mode = _resolver_sales_mode(turno)
+    orders_count = 0
+    if sales_mode == 'preventa':
+        pv = _resumen_comercial_preventa(codigo_vendedor, turno)
+        total_sold = pv['total_sold']
+        total_efectivo = pv['total_efectivo']
+        total_transferencia = pv['total_transferencia']
+        total_mixto = pv['total_mixto']
+        units_sold = pv['units_sold']
+        productos_vendidos = pv['productos_vendidos']
+        orders_count = pv['orders_count']
 
     return respuesta_ok({
         'turno_id': turno.id,
         'fecha': str(turno.fecha),
+        'sales_mode': sales_mode,
         'completed_visits': completed_visits,
         'exception_visits': exception_visits,
         'checked_stock_items': checked_stock_items,
@@ -438,6 +608,7 @@ def resumen_turno_actual():
         'total_transferencia': total_transferencia,
         'total_mixto': total_mixto,
         'productos_vendidos': productos_vendidos,
+        'orders_count': orders_count,
         'returns_handled': returns_handled,
         'cambio_returns': cambio_returns,
         'units_remaining': units_remaining,
@@ -485,6 +656,30 @@ def historial_resumen_turnos():
 
     turnos = q.order_by(BDTurno.fecha.desc(), BDTurno.id.desc()).limit(limit).all()
     turno_ids = [t.id for t in turnos]
+    # Fecha por turno, para atribuir por fecha las ventas con turno_id NULL
+    # (ver comentario en la sección de ventas). Mismo criterio que /turnos/resumen.
+    turno_fechas = {t.id: t.fecha for t in turnos}
+    fechas = set(turno_fechas.values())
+
+    # Turno PRIMARIO por fecha (mayor id) sobre TODOS los turnos del vendedor en esa
+    # fecha (no solo los del window). Las ventas con turno_id NULL de una fecha se
+    # atribuyen SOLO a su turno primario → nunca a varios turnos del mismo día.
+    # Mismo criterio determinista que /turnos/resumen (_es_turno_primario_de_fecha).
+    primary_turno_por_fecha = {}
+    if fechas:
+        primary_rows = db.session.query(
+            BDTurno.fecha, func.max(BDTurno.id),
+        ).filter(
+            BDTurno.codigo_vendedor == codigo_vendedor,
+            BDTurno.fecha.in_(fechas),
+        ).group_by(BDTurno.fecha).all()
+        primary_turno_por_fecha = {f: mid for f, mid in primary_rows}
+
+    def _null_fecha(mapping, turno):
+        """Aporte por fecha (turno_id NULL) SOLO si turno es primario de su fecha."""
+        if primary_turno_por_fecha.get(turno.fecha) != turno.id:
+            return 0
+        return mapping.get(turno.fecha, 0)
 
     current_app.logger.info(
         '[historial-resumen] vendedor=%s estado=%s desde=%s hasta=%s limit=%s turnos_ids=%s',
@@ -523,14 +718,32 @@ def historial_resumen_turnos():
     ).group_by(BDVentaAutoventa.turno_id).all()
     ventas_total_map = {tid: float(total or 0) for tid, total in ventas_rows}
 
-    # Desglose por forma de pago por turno (mismo criterio que /turnos/resumen).
+    # Ventas con turno_id NULL (offline-first: el turno abierto aún no estaba
+    # resuelto al registrar la venta). Se atribuyen por fecha, EXACTAMENTE como
+    # /turnos/resumen (turno_id == t.id OR (turno_id IS NULL AND fecha == t.fecha)),
+    # pero SOLO al turno primario de la fecha (ver _null_fecha) → sin doble conteo.
+    ventas_null_rows = db.session.query(
+        BDVentaAutoventa.fecha,
+        func.coalesce(func.sum(BDVentaAutoventa.total), 0),
+    ).filter(
+        BDVentaAutoventa.codigo_vendedor == codigo_vendedor,
+        BDVentaAutoventa.turno_id.is_(None),
+        BDVentaAutoventa.fecha.in_(fechas),
+    ).group_by(BDVentaAutoventa.fecha).all()
+    ventas_total_null_by_fecha = {f: float(total or 0) for f, total in ventas_null_rows}
+
+    # Desglose por forma de pago por turno (mismo criterio que /turnos/resumen):
+    # la venta mixta se reparte efectivo (monto_efectivo) + transferencia (resto), así
+    # efectivo + transferencia = total; `mixto` es informativo (no se suma aparte).
+    pago_mixto_efectivo = func.coalesce(BDVentaAutoventa.monto_efectivo, 0)
     pago_efectivo_expr = case(
         (BDVentaAutoventa.metodo_pago == 'transferencia', 0),
-        (BDVentaAutoventa.metodo_pago == 'mixto', 0),
+        (BDVentaAutoventa.metodo_pago == 'mixto', pago_mixto_efectivo),
         else_=BDVentaAutoventa.total,
     )
     pago_transferencia_expr = case(
         (BDVentaAutoventa.metodo_pago == 'transferencia', BDVentaAutoventa.total),
+        (BDVentaAutoventa.metodo_pago == 'mixto', BDVentaAutoventa.total - pago_mixto_efectivo),
         else_=0,
     )
     pago_mixto_expr = case(
@@ -550,6 +763,21 @@ def historial_resumen_turnos():
     transferencia_map = {tid: float(tr or 0) for tid, _ef, tr, _mx in pago_rows}
     mixto_map = {tid: float(mx or 0) for tid, _ef, _tr, mx in pago_rows}
 
+    # Mismo fallback por fecha para el desglose de pago de ventas con turno_id NULL.
+    pago_null_rows = db.session.query(
+        BDVentaAutoventa.fecha,
+        func.coalesce(func.sum(pago_efectivo_expr), 0),
+        func.coalesce(func.sum(pago_transferencia_expr), 0),
+        func.coalesce(func.sum(pago_mixto_expr), 0),
+    ).filter(
+        BDVentaAutoventa.codigo_vendedor == codigo_vendedor,
+        BDVentaAutoventa.turno_id.is_(None),
+        BDVentaAutoventa.fecha.in_(fechas),
+    ).group_by(BDVentaAutoventa.fecha).all()
+    efectivo_null_by_fecha = {f: float(ef or 0) for f, ef, _tr, _mx in pago_null_rows}
+    transferencia_null_by_fecha = {f: float(tr or 0) for f, _ef, tr, _mx in pago_null_rows}
+    mixto_null_by_fecha = {f: float(mx or 0) for f, _ef, _tr, mx in pago_null_rows}
+
     unidades_rows = db.session.query(
         BDVentaAutoventa.turno_id,
         func.coalesce(func.sum(BDVentaAutoventaItem.cantidad), 0),
@@ -558,6 +786,17 @@ def historial_resumen_turnos():
         BDVentaAutoventa.turno_id.in_(turno_ids),
     ).group_by(BDVentaAutoventa.turno_id).all()
     unidades_map = {tid: int(qty or 0) for tid, qty in unidades_rows}
+
+    # Mismo fallback por fecha para las unidades vendidas de ventas con turno_id NULL.
+    unidades_null_rows = db.session.query(
+        BDVentaAutoventa.fecha,
+        func.coalesce(func.sum(BDVentaAutoventaItem.cantidad), 0),
+    ).join(BDVentaAutoventaItem, BDVentaAutoventa.id == BDVentaAutoventaItem.autoventa_id).filter(
+        BDVentaAutoventa.codigo_vendedor == codigo_vendedor,
+        BDVentaAutoventa.turno_id.is_(None),
+        BDVentaAutoventa.fecha.in_(fechas),
+    ).group_by(BDVentaAutoventa.fecha).all()
+    unidades_null_by_fecha = {f: int(qty or 0) for f, qty in unidades_null_rows}
 
     # Devoluciones por tipo (vendedor / cliente) en unidades.
     dev_rows = db.session.query(
@@ -614,7 +853,10 @@ def historial_resumen_turnos():
     items = []
     for t in turnos:
         carga_inicial = despacho_map.get(t.id, 0)
-        unidades_vendidas = unidades_map.get(t.id, 0)
+        # Ventas del turno = ligadas por turno_id + ligadas por fecha (turno_id NULL,
+        # SOLO si t es el turno primario de su fecha). Idéntico a /turnos/resumen para
+        # que pantalla y recibo coincidan, sin doble conteo entre turnos del mismo día.
+        unidades_vendidas = unidades_map.get(t.id, 0) + _null_fecha(unidades_null_by_fecha, t)
         dev_vendedor = dev_vendedor_map.get(t.id, 0)
         dev_cliente = dev_cliente_map.get(t.id, 0)
         cambio_returns = cambio_returns_map.get(t.id, 0)
@@ -626,10 +868,10 @@ def historial_resumen_turnos():
             'fecha': str(t.fecha),
             'estado': t.estado,
             'carga_inicial': carga_inicial,
-            'ventas_total': ventas_total_map.get(t.id, 0.0),
-            'total_efectivo': efectivo_map.get(t.id, 0.0),
-            'total_transferencia': transferencia_map.get(t.id, 0.0),
-            'total_mixto': mixto_map.get(t.id, 0.0),
+            'ventas_total': ventas_total_map.get(t.id, 0.0) + _null_fecha(ventas_total_null_by_fecha, t),
+            'total_efectivo': efectivo_map.get(t.id, 0.0) + _null_fecha(efectivo_null_by_fecha, t),
+            'total_transferencia': transferencia_map.get(t.id, 0.0) + _null_fecha(transferencia_null_by_fecha, t),
+            'total_mixto': mixto_map.get(t.id, 0.0) + _null_fecha(mixto_null_by_fecha, t),
             'unidades_vendidas': unidades_vendidas,
             'cambios': cambios_count_map.get(t.id, 0),
             'cambio_returns': cambio_returns,

@@ -36,6 +36,9 @@ migrations/
 
 cifrado.py
 
+# Artefactos de subidas (logs de importación, etc.), no código
+app/uploads/
+
 CLAUDE.md
 sistema_ventas.pdf
 .claudeignore
