@@ -39,7 +39,9 @@ def notificar_accion(tipo, datos):
             mensaje = f"🗑 *Venta* `{datos['consecutivo']}` del *{datos['vendedor']}* el `{datos['fecha']}` fue *eliminada* por *{usuario}*."
 
         elif tipo == "crear_liquidacion":
-            mensaje = f"📄 *Liquidación* generada por *{usuario}* para *{datos['vendedor']}* del `{datos['fecha_inicio']}`\nValor: `{datos['total_pagar']}`."
+            total_pagar = datos.get('total_pagar')
+            valor = f"${total_pagar:,.0f}" if total_pagar is not None else "N/D"
+            mensaje = f"📄 *Liquidación* generada por *{usuario}* para *{datos['vendedor']}* del `{datos['fecha_inicio']}`\nValor: `{valor}`."
 
         elif tipo == "editar_liquidacion":
             mensaje = f"✏️ *Liquidación* `{datos['codigo']}` fue *editada* por *{usuario}* para *{datos['vendedor']}* el `{datos['fecha']}`."

@@ -89,7 +89,8 @@ def crear_liquidacion():
             notificar_accion("crear_liquidacion", {
                 "vendedor": vendedor.nombre if vendedor else vendedor_codigo,
                 "fecha_inicio": fecha,
-                "fecha_fin": fecha
+                "fecha_fin": fecha,
+                "total_pagar": total_a_pagar,
             })
 
             flash(f"Liquidación {codigo} creada correctamente.", "success")
