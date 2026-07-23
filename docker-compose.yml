@@ -35,7 +35,11 @@ services:
 
     ports:
 
-      - "127.0.0.1:5000:5000"
+      # TEMPORAL: abierto a 0.0.0.0 (HTTP plano) porque la app móvil todavía
+      # apunta directo a http://IP:5000 en vez de https://ventas.incolpan.com.
+      # Volver a "127.0.0.1:5000:5000" en cuanto el equipo móvil confirme el
+      # cambio de base URL.
+      - "5000:5000"
 
     volumes:
 
