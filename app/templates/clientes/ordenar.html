@@ -81,6 +81,10 @@
                {{ 'checked' if c.activo }}>
         <label class="form-check-label small">{{ 'Activo' if c.activo else 'Inactivo' }}</label>
       </div>
+      <a href="{{ url_for('clientes.editar_cliente', id=c.id) }}" target="_blank"
+         class="btn btn-sm btn-outline-primary" title="Editar cliente">
+        <i class="bi bi-pencil-square"></i>
+      </a>
     </div>
     {% endfor %}
   </div>
